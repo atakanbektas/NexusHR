@@ -1,10 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using MediatR;
 
-namespace NexusHR.Candidate.Application.Candidates.CreateCandidate
-{
-    internal class CreateCandidateCommand
-    {
-    }
-}
+namespace NexusHR.Candidate.Application.Candidates.CreateCandidate;
+
+public sealed record CreateCandidateCommand(
+    string FirstName,
+    string LastName,
+    string Email,
+    string PhoneNumber)
+    : IRequest<CreateCandidateResponse>;

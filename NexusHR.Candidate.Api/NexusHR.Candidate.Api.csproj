@@ -20,8 +20,4 @@
     <ProjectReference Include="..\NexusHR.Candidate.Infrastructure\NexusHR.Candidate.Infrastructure.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Controllers\" />
-  </ItemGroup>
-
 </Project>
