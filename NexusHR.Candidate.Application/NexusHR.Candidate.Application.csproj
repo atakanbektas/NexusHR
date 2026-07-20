@@ -6,4 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\NexusHR.Candidate.Domain\NexusHR.Candidate.Domain.csproj" />
+  </ItemGroup>
+
 </Project>

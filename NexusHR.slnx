@@ -1,1 +1,17 @@
-<Solution />
+<Solution>
+  <Folder Name="/building-blocks/" />
+  <Folder Name="/docs/" />
+  <Folder Name="/src/" />
+  <Folder Name="/src/Services/" />
+  <Folder Name="/src/Services/Candidate/">
+    <Project Path="NexusHR.Candidate.Api/NexusHR.Candidate.Api.csproj" />
+    <Project Path="NexusHR.Candidate.Application/NexusHR.Candidate.Application.csproj" />
+    <Project Path="NexusHR.Candidate.Domain/NexusHR.Candidate.Domain.csproj" />
+    <Project Path="NexusHR.Candidate.Infrastructure/NexusHR.Candidate.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/" />
+  <Folder Name="/tests/Candidate/">
+    <Project Path="NexusHR.Candidate.IntegrationTests/NexusHR.Candidate.IntegrationTests.csproj" />
+    <Project Path="NexusHR.Candidate.UnitTests/NexusHR.Candidate.UnitTests.csproj" />
+  </Folder>
+</Solution>
