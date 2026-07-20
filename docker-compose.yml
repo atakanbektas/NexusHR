@@ -1,0 +1,22 @@
+services:
+  candidate-db:
+    image: postgres:16-alpine
+    container_name: nexushr-candidate-db
+    environment:
+      POSTGRES_DB: nexushr_candidate
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - candidate-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U postgres -d nexushr_candidate
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  candidate-db-data:
