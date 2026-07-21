@@ -2,8 +2,9 @@
 using Microsoft.AspNetCore.Mvc;
 using NexusHR.Candidate.Api.Contracts.Candidates;
 using NexusHR.Candidate.Application.Candidates.CreateCandidate;
-using NexusHR.Candidate.Application.Candidates.GetCandidates;
 using NexusHR.Candidate.Application.Candidates.GetCandidateById;
+using NexusHR.Candidate.Application.Candidates.GetCandidates;
+using NexusHR.Candidate.Application.Candidates.UpdateCandidate;
 
 
 namespace NexusHR.Candidate.Api.Controllers;
@@ -101,6 +102,49 @@ public sealed class CandidatesController(
             {
                 id = response.CandidateId
             });
+    }
+
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Update(
+    Guid id,
+    UpdateCandidateRequest request,
+    CancellationToken cancellationToken)
+    {
+        var command = new UpdateCandidateCommand(
+            id,
+            request.FirstName,
+            request.LastName,
+            request.Email,
+            request.PhoneNumber);
+
+        var response = await sender.Send(
+            command,
+            cancellationToken);
+
+        if (response.IsSuccess)
+        {
+            return NoContent();
+        }
+
+        var errorResponse = new
+        {
+            code = response.ErrorCode,
+            errors = response.Errors
+        };
+
+        return response.ErrorCode switch
+        {
+            "Candidate.NotFound" =>
+                NotFound(errorResponse),
+
+            "Candidate.EmailAlreadyExists" =>
+                Conflict(errorResponse),
+
+            "Candidate.Archived" =>
+                Conflict(errorResponse),
+
+            _ => BadRequest(errorResponse)
+        };
     }
 
 }

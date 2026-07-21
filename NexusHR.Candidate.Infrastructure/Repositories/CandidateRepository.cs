@@ -59,4 +59,26 @@ internal sealed class CandidateRepository(
                 candidate => candidate.Id == candidateId,
                 cancellationToken);
     }
+
+    public Task<bool> EmailExistsAsync(
+        string email,
+        Guid excludedCandidateId,
+        CancellationToken cancellationToken)
+    {
+        return dbContext.Candidates.AnyAsync(
+            candidate =>
+                candidate.Email == email &&
+                candidate.Id != excludedCandidateId,
+            cancellationToken);
+    }
+
+    public async Task UpdateAsync(
+        CandidateEntity candidate,
+        CancellationToken cancellationToken)
+    {
+        dbContext.Candidates.Update(candidate);
+
+        await dbContext.SaveChangesAsync(
+            cancellationToken);
+    }
 }

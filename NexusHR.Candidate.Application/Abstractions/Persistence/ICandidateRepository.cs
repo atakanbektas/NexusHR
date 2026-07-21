@@ -6,13 +6,23 @@ namespace NexusHR.Candidate.Application.Abstractions.Persistence;
 public interface ICandidateRepository
 {
     Task<CandidateEntity?> GetByIdAsync(
-    Guid candidateId,
-    CancellationToken cancellationToken);
+        Guid candidateId,
+        CancellationToken cancellationToken);
+
     Task<bool> EmailExistsAsync(
         string email,
         CancellationToken cancellationToken);
 
+    Task<bool> EmailExistsAsync(
+        string email,
+        Guid excludedCandidateId,
+        CancellationToken cancellationToken);
+
     Task AddAsync(
+        CandidateEntity candidate,
+        CancellationToken cancellationToken);
+
+    Task UpdateAsync(
         CandidateEntity candidate,
         CancellationToken cancellationToken);
 

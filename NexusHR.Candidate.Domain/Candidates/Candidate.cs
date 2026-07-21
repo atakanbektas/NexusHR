@@ -58,19 +58,48 @@ public sealed class Candidate
 
     public DateTime? UpdatedAtUtc { get; private set; }
 
-    public void UpdateContactInformation(
+    public void UpdateInformation(
+        string firstName,
+        string lastName,
         string email,
         string phoneNumber)
     {
         if (Status == CandidateStatus.Archived)
+        {
             throw new InvalidOperationException(
                 "Arşivlenmiş aday güncellenemez.");
+        }
+
+        if (string.IsNullOrWhiteSpace(firstName))
+        {
+            throw new ArgumentException(
+                "Aday adı boş olamaz.",
+                nameof(firstName));
+        }
+
+        if (string.IsNullOrWhiteSpace(lastName))
+        {
+            throw new ArgumentException(
+                "Aday soyadı boş olamaz.",
+                nameof(lastName));
+        }
 
         if (string.IsNullOrWhiteSpace(email))
+        {
             throw new ArgumentException(
                 "E-posta adresi boş olamaz.",
                 nameof(email));
+        }
 
+        if (string.IsNullOrWhiteSpace(phoneNumber))
+        {
+            throw new ArgumentException(
+                "Telefon numarası boş olamaz.",
+                nameof(phoneNumber));
+        }
+
+        FirstName = firstName.Trim();
+        LastName = lastName.Trim();
         Email = email.Trim().ToLowerInvariant();
         PhoneNumber = phoneNumber.Trim();
         UpdatedAtUtc = DateTime.UtcNow;
