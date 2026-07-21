@@ -29,4 +29,34 @@ internal sealed class CandidateRepository(
 
         await dbContext.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task<IReadOnlyCollection<CandidateEntity>> GetPageAsync(
+        int skip,
+        int take,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.Candidates
+            .AsNoTracking()
+            .OrderByDescending(candidate => candidate.CreatedAtUtc)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+    }
+
+    public Task<int> CountAsync(
+        CancellationToken cancellationToken)
+    {
+        return dbContext.Candidates.CountAsync(cancellationToken);
+    }
+
+    public Task<CandidateEntity?> GetByIdAsync(
+        Guid candidateId,
+        CancellationToken cancellationToken)
+    {
+        return dbContext.Candidates
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                candidate => candidate.Id == candidateId,
+                cancellationToken);
+    }
 }

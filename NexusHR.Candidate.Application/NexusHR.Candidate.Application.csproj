@@ -12,8 +12,6 @@
 
   <ItemGroup>
     <Folder Include="Abstractions\Messaging\" />
-    <Folder Include="Candidates\GetCandidateById\" />
-    <Folder Include="Candidates\GetCandidates\" />
   </ItemGroup>
 
   <ItemGroup>
