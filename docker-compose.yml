@@ -31,6 +31,45 @@ services:
     volumes:
       - candidate-storage-data:/data
 
+  candidate-api:
+    build:
+      context: .
+      dockerfile: NexusHR.Candidate.Api/Dockerfile
+    image: nexushr-candidate-api
+    container_name: nexushr-candidate-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+
+      ConnectionStrings__CandidateDatabase: Host=candidate-db;Port=5432;Database=nexushr_candidate;Username=postgres;Password=postgres
+
+      Minio__Endpoint: candidate-storage:9000
+      Minio__AccessKey: nexushr
+      Minio__SecretKey: nexushr-dev-secret
+      Minio__BucketName: candidate-documents
+      Minio__UseSsl: "false"
+    ports:
+      - "5211:8080"
+    depends_on:
+      candidate-db:
+        condition: service_healthy
+      candidate-storage:
+        condition: service_started
+
+  candidate-web:
+    build:
+      context: ./NexusHR.Web
+      dockerfile: Dockerfile
+      args:
+        VITE_CANDIDATE_API_URL: http://localhost:5211
+    image: nexushr-candidate-web
+    container_name: nexushr-candidate-web
+    ports:
+      - "5173:80"
+    depends_on:
+      candidate-api:
+        condition: service_started
+
 volumes:
   candidate-db-data:
   candidate-storage-data:

@@ -1,5 +1,7 @@
+using Microsoft.EntityFrameworkCore;
 using NexusHR.Candidate.Application;
 using NexusHR.Candidate.Infrastructure;
+using NexusHR.Candidate.Infrastructure.Persistence;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -27,11 +29,21 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Uygulanmamış migration'ları başlangıçta veritabanına uygular.
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    var dbContext =
+        scope.ServiceProvider.GetRequiredService<CandidateDbContext>();
+
+    await dbContext.Database.MigrateAsync();
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.MapScalarApiReference();
 }
+
 app.UseHttpsRedirection();
 app.UseCors(FrontendCorsPolicy);
 
