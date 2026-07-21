@@ -4,6 +4,9 @@ using Microsoft.Extensions.DependencyInjection;
 using NexusHR.Candidate.Application.Abstractions.Persistence;
 using NexusHR.Candidate.Infrastructure.Persistence;
 using NexusHR.Candidate.Infrastructure.Repositories;
+using NexusHR.Candidate.Application.Abstractions.Documents;
+using NexusHR.Candidate.Infrastructure.Documents;
+
 
 namespace NexusHR.Candidate.Infrastructure;
 
@@ -26,7 +29,7 @@ public static class DependencyInjection
             options.UseNpgsql(connectionString));
 
         services.AddScoped<ICandidateRepository,CandidateRepository>();
-
+        services.AddScoped<ICvInformationExtractor,PdfCvInformationExtractor>();
 
         return services;
     }
