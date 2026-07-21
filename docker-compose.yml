@@ -18,5 +18,19 @@ services:
       timeout: 5s
       retries: 5
 
+  candidate-storage:
+    image: minio/minio:latest
+    container_name: nexushr-candidate-storage
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: nexushr
+      MINIO_ROOT_PASSWORD: nexushr-dev-secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - candidate-storage-data:/data
+
 volumes:
   candidate-db-data:
+  candidate-storage-data:

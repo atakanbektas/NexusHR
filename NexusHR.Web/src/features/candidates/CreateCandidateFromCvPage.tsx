@@ -24,6 +24,7 @@ import {
   extractCandidateFromCv,
 } from "./candidateService";
 import type { CreateCandidateRequest } from "./candidateTypes";
+import { uploadCandidateCv } from "../../api/candidateApi";
 
 const initialForm: CreateCandidateRequest = {
   firstName: "",
@@ -121,44 +122,52 @@ export default function CreateCandidateFromCvPage() {
     }
   }
 
-  async function handleSave() {
-    if (
-      !form.firstName.trim() ||
-      !form.lastName.trim() ||
-      !form.email.trim() ||
-      !form.phoneNumber.trim()
-    ) {
-      setErrorMessage(
-        "Adayı kaydetmeden önce tüm alanları doldurmalısınız.",
-      );
-      return;
-    }
-
-    setIsSaving(true);
-    setErrorMessage(null);
-    setSuccessMessage(null);
-
-    try {
-      const response = await createCandidate({
-        firstName: form.firstName.trim(),
-        lastName: form.lastName.trim(),
-        email: form.email.trim(),
-        phoneNumber: form.phoneNumber.trim(),
-      });
-
-      setSuccessMessage(
-        `Taslak aday başarıyla oluşturuldu. Aday ID: ${response.id}`,
-      );
-
-      setForm(initialForm);
-      setSelectedFile(null);
-    } catch (error) {
-      setErrorMessage(getErrorMessage(error));
-    } finally {
-      setIsSaving(false);
-    }
+async function handleSave() {
+  if (!selectedFile) {
+    setErrorMessage("Kaydetmeden önce bir PDF CV seçmelisiniz.");
+    return;
   }
 
+  if (
+    !form.firstName.trim() ||
+    !form.lastName.trim() ||
+    !form.email.trim() ||
+    !form.phoneNumber.trim()
+  ) {
+    setErrorMessage(
+      "Adayı kaydetmeden önce tüm alanları doldurmalısınız.",
+    );
+    return;
+  }
+
+  setIsSaving(true);
+  setErrorMessage(null);
+  setSuccessMessage(null);
+
+  try {
+    // Önce taslak aday oluşturulur.
+    const response = await createCandidate({
+      firstName: form.firstName.trim(),
+      lastName: form.lastName.trim(),
+      email: form.email.trim(),
+      phoneNumber: form.phoneNumber.trim(),
+    });
+
+    // Oluşan adayın ID'si kullanılarak CV MinIO'ya yüklenir.
+    await uploadCandidateCv(response.id, selectedFile);
+
+    setSuccessMessage(
+      `Taslak aday ve CV başarıyla kaydedildi. Aday ID: ${response.id}`,
+    );
+
+    setForm(initialForm);
+    setSelectedFile(null);
+  } catch (error) {
+    setErrorMessage(getErrorMessage(error));
+  } finally {
+    setIsSaving(false);
+  }
+}
   return (
     <Box
       sx={{

@@ -6,6 +6,7 @@ using NexusHR.Candidate.Application.Candidates.GetCandidateById;
 using NexusHR.Candidate.Application.Candidates.GetCandidates;
 using NexusHR.Candidate.Application.Candidates.UpdateCandidate;
 using NexusHR.Candidate.Application.Candidates.ExtractCandidateFromCv;
+using NexusHR.Candidate.Application.Candidates.UploadCandidateCv;
 
 namespace NexusHR.Candidate.Api.Controllers;
 
@@ -192,6 +193,72 @@ public sealed class CandidatesController(
         }
 
         return Ok(response.Draft);
+    }
+
+    [HttpPost("{id:guid}/documents/cv")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(6 * 1024 * 1024)]
+    public async Task<IActionResult> UploadCv(
+    Guid id,
+    [FromForm] UploadCandidateCvRequest request,
+    CancellationToken cancellationToken)
+    {
+        var file = request.File;
+
+        if (file is null || file.Length == 0)
+        {
+            return BadRequest(new
+            {
+                code = "Candidate.CvFileRequired",
+                errors = new[]
+                {
+                "CV dosyası seçilmelidir."
+            }
+            });
+        }
+
+        await using var memoryStream = new MemoryStream();
+
+        await file.CopyToAsync(
+            memoryStream,
+            cancellationToken);
+
+        var command = new UploadCandidateCvCommand(
+            id,
+            file.FileName,
+            file.ContentType,
+            memoryStream.ToArray());
+
+        var response = await sender.Send(
+            command,
+            cancellationToken);
+
+        if (!response.IsSuccess)
+        {
+            var errorResponse = new
+            {
+                code = response.ErrorCode,
+                errors = response.Errors
+            };
+
+            return response.ErrorCode switch
+            {
+                "Candidate.NotFound" =>
+                    NotFound(errorResponse),
+
+                "Candidate.CvAlreadyExists" =>
+                    Conflict(errorResponse),
+
+                _ => BadRequest(errorResponse)
+            };
+        }
+
+        return StatusCode(
+            StatusCodes.Status201Created,
+            new
+            {
+                documentId = response.DocumentId
+            });
     }
 
 }

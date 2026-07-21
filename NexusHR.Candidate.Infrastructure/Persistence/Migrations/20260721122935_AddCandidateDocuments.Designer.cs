@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NexusHR.Candidate.Infrastructure.Persistence;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace NexusHR.Candidate.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(CandidateDbContext))]
-    partial class CandidateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260721122935_AddCandidateDocuments")]
+    partial class AddCandidateDocuments
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -65,61 +68,6 @@ namespace NexusHR.Candidate.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("candidates", (string)null);
-                });
-
-            modelBuilder.Entity("NexusHR.Candidate.Domain.Candidates.CandidateDocument", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("CandidateId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ContentType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("ObjectName")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<string>("OriginalFileName")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
-                    b.Property<long>("SizeBytes")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateTime>("UploadedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ObjectName")
-                        .IsUnique();
-
-                    b.HasIndex("CandidateId", "Type")
-                        .IsUnique();
-
-                    b.ToTable("candidate_documents", (string)null);
-                });
-
-            modelBuilder.Entity("NexusHR.Candidate.Domain.Candidates.CandidateDocument", b =>
-                {
-                    b.HasOne("NexusHR.Candidate.Domain.Candidates.Candidate", null)
-                        .WithMany()
-                        .HasForeignKey("CandidateId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }
