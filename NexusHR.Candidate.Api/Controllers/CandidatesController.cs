@@ -7,6 +7,7 @@ using NexusHR.Candidate.Application.Candidates.GetCandidates;
 using NexusHR.Candidate.Application.Candidates.UpdateCandidate;
 using NexusHR.Candidate.Application.Candidates.ExtractCandidateFromCv;
 using NexusHR.Candidate.Application.Candidates.UploadCandidateCv;
+using NexusHR.Candidate.Application.Candidates.DownloadCandidateCv;
 
 namespace NexusHR.Candidate.Api.Controllers;
 
@@ -259,6 +260,34 @@ public sealed class CandidatesController(
             {
                 documentId = response.DocumentId
             });
+    }
+
+
+    [HttpGet("{id:guid}/documents/cv")]
+    public async Task<IActionResult> DownloadCv(
+    Guid id,
+    CancellationToken cancellationToken)
+    {
+        var response = await sender.Send(
+            new DownloadCandidateCvQuery(id),
+            cancellationToken);
+
+        if (response is null)
+        {
+            return NotFound(new
+            {
+                code = "Candidate.CvNotFound",
+                errors = new[]
+                {
+                "Adaya ait CV bulunamadı."
+            }
+            });
+        }
+
+        return File(
+            response.Content,
+            response.ContentType,
+            response.FileName);
     }
 
 }
