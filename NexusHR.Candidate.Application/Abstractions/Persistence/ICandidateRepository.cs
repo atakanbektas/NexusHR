@@ -1,4 +1,5 @@
-﻿using CandidateEntity =
+﻿using NexusHR.Candidate.Domain.Candidates;
+using CandidateEntity =
     NexusHR.Candidate.Domain.Candidates.Candidate;
 
 namespace NexusHR.Candidate.Application.Abstractions.Persistence;
@@ -29,8 +30,12 @@ public interface ICandidateRepository
     Task<IReadOnlyCollection<CandidateEntity>> GetPageAsync(
         int skip,
         int take,
+        string? search,
+        CandidateStatus? status,
         CancellationToken cancellationToken);
 
     Task<int> CountAsync(
+        string? search,
+        CandidateStatus? status,
         CancellationToken cancellationToken);
 }

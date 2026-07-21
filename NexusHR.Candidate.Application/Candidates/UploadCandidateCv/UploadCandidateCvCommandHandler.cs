@@ -92,6 +92,13 @@ internal sealed class UploadCandidateCvCommandHandler(
             throw;
         }
 
+        candidate.MarkDocumentsPending();
+        candidate.MarkReadyForHiring();
+
+        await candidateRepository.UpdateAsync(
+            candidate,
+            cancellationToken);
+
         return UploadCandidateCvResponse.Success(document.Id);
     }
 }

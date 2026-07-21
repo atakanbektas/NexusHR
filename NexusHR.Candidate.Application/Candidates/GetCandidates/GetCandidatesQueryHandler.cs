@@ -25,9 +25,13 @@ internal sealed class GetCandidatesQueryHandler(
         var candidates = await candidateRepository.GetPageAsync(
             skip: (page - 1) * pageSize,
             take: pageSize,
+            search: request.Search,
+            status: request.Status,
             cancellationToken);
 
         var totalCount = await candidateRepository.CountAsync(
+            request.Search,
+            request.Status,
             cancellationToken);
 
         var items = candidates

@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using NexusHR.Candidate.Application.Abstractions.Persistence;
+using NexusHR.Candidate.Domain.Candidates;
 using NexusHR.Candidate.Infrastructure.Persistence;
 using CandidateEntity =
     NexusHR.Candidate.Domain.Candidates.Candidate;
@@ -33,10 +34,11 @@ internal sealed class CandidateRepository(
     public async Task<IReadOnlyCollection<CandidateEntity>> GetPageAsync(
         int skip,
         int take,
+        string? search,
+        CandidateStatus? status,
         CancellationToken cancellationToken)
     {
-        return await dbContext.Candidates
-            .AsNoTracking()
+        return await ApplyFilters(search, status)
             .OrderByDescending(candidate => candidate.CreatedAtUtc)
             .Skip(skip)
             .Take(take)
@@ -44,9 +46,12 @@ internal sealed class CandidateRepository(
     }
 
     public Task<int> CountAsync(
+        string? search,
+        CandidateStatus? status,
         CancellationToken cancellationToken)
     {
-        return dbContext.Candidates.CountAsync(cancellationToken);
+        return ApplyFilters(search, status)
+            .CountAsync(cancellationToken);
     }
 
     public Task<CandidateEntity?> GetByIdAsync(
@@ -80,5 +85,31 @@ internal sealed class CandidateRepository(
 
         await dbContext.SaveChangesAsync(
             cancellationToken);
+    }
+
+    private IQueryable<CandidateEntity> ApplyFilters(
+        string? search,
+        CandidateStatus? status)
+    {
+        var query = dbContext.Candidates.AsNoTracking();
+
+        if (status.HasValue)
+        {
+            query = query.Where(
+                candidate => candidate.Status == status.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var pattern = $"%{search.Trim()}%";
+
+            query = query.Where(candidate =>
+                EF.Functions.ILike(candidate.FirstName, pattern) ||
+                EF.Functions.ILike(candidate.LastName, pattern) ||
+                EF.Functions.ILike(candidate.Email, pattern) ||
+                EF.Functions.ILike(candidate.PhoneNumber, pattern));
+        }
+
+        return query;
     }
 }

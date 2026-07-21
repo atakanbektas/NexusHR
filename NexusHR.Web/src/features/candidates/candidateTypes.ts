@@ -15,3 +15,37 @@ export interface CreateCandidateRequest {
 export interface CreateCandidateResponse {
   id: string;
 }
+
+export type CandidateStatus =
+  | "Draft"
+  | "DocumentsPending"
+  | "ReadyForHiring"
+  | "Archived";
+
+export interface CandidateListItem {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber: string;
+  status: CandidateStatus;
+  createdAtUtc: string;
+}
+
+export interface GetCandidatesResponse {
+  items: CandidateListItem[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}
+
+export interface CandidateDetail extends CandidateListItem {
+  updatedAtUtc: string | null;
+}
+
+export interface GetCandidatesRequest {
+  page: number;
+  pageSize: number;
+  search?: string;
+  status?: CandidateStatus;
+}

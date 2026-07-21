@@ -8,6 +8,7 @@ using NexusHR.Candidate.Application.Candidates.UpdateCandidate;
 using NexusHR.Candidate.Application.Candidates.ExtractCandidateFromCv;
 using NexusHR.Candidate.Application.Candidates.UploadCandidateCv;
 using NexusHR.Candidate.Application.Candidates.DownloadCandidateCv;
+using NexusHR.Candidate.Domain.Candidates;
 
 namespace NexusHR.Candidate.Api.Controllers;
 
@@ -47,11 +48,15 @@ public sealed class CandidatesController(
     public async Task<IActionResult> GetCandidates(
     [FromQuery] int page = 1,
     [FromQuery] int pageSize = 20,
+    [FromQuery] string? search = null,
+    [FromQuery] CandidateStatus? status = null,
     CancellationToken cancellationToken = default)
     {
         var query = new GetCandidatesQuery(
             page,
-            pageSize);
+            pageSize,
+            search,
+            status);
 
         var response = await sender.Send(
             query,

@@ -52,5 +52,51 @@ namespace NexusHR.Candidate.UnitTests.Candidates
                 CandidateStatus.ReadyForHiring,
                 candidate.Status);
         }
+
+        [Fact]
+        public void MarkDocumentsPending_ShouldThrow_WhenCandidateIsNotDraft()
+        {
+            var candidate = CreateCandidate();
+
+            candidate.MarkDocumentsPending();
+
+            Assert.Throws<InvalidOperationException>(
+                candidate.MarkDocumentsPending);
+        }
+
+        [Fact]
+        public void Archive_ShouldPreventInformationUpdates()
+        {
+            var candidate = CreateCandidate();
+            candidate.Archive();
+
+            Assert.Throws<InvalidOperationException>(() =>
+                candidate.UpdateInformation(
+                    "Yeni",
+                    "Aday",
+                    "yeni@example.com",
+                    "05555555556"));
+        }
+
+        [Fact]
+        public void Archive_ShouldBeIdempotent()
+        {
+            var candidate = CreateCandidate();
+
+            candidate.Archive();
+            candidate.Archive();
+
+            Assert.Equal(CandidateStatus.Archived, candidate.Status);
+        }
+
+        private static Domain.Candidates.Candidate CreateCandidate()
+        {
+            return new Domain.Candidates.Candidate(
+                Guid.NewGuid(),
+                "Atakan",
+                "Bektaş",
+                "atakan@example.com",
+                "05555555555");
+        }
     }
 }
