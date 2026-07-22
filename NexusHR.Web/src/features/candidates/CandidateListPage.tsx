@@ -21,7 +21,8 @@ import {
 } from "@mui/material";
 import {
   Add,
-  PeopleAlt,
+  PeopleAlt, 
+  Visibility,
 } from "@mui/icons-material";
 import { getCandidates } from "./candidateService";
 import type {
@@ -283,6 +284,9 @@ export default function CandidateListPage() {
                       <TableCell>
                         <strong>Kayıt Tarihi</strong>
                       </TableCell>
+                      <TableCell align="right">
+  <strong>İşlemler</strong>
+</TableCell>
                     </TableRow>
                   </TableHead>
 
@@ -326,6 +330,17 @@ export default function CandidateListPage() {
                             candidate.createdAtUtc,
                           ).toLocaleString("tr-TR")}
                         </TableCell>
+                        <TableCell align="right">
+  <Button
+    component={Link}
+    to={`/candidates/${candidate.id}`}
+    variant="outlined"
+    size="small"
+    startIcon={<Visibility />}
+  >
+    Detay
+  </Button>
+</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

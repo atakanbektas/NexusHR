@@ -4,6 +4,8 @@ import {
   Route,
   Routes,
 } from "react-router-dom";
+import CandidateDetailPage from
+  "./features/candidates/CandidateDetailPage";
 import CandidateListPage from
   "./features/candidates/CandidateListPage";
 import CreateCandidateFromCvPage from
@@ -31,6 +33,11 @@ function App() {
         <Route
           path="/candidates/new"
           element={<CreateCandidateFromCvPage />}
+        />
+
+        <Route
+          path="/candidates/:id"
+          element={<CandidateDetailPage />}
         />
 
         <Route

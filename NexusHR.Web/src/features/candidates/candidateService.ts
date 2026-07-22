@@ -105,3 +105,11 @@ export async function downloadCandidateCv(
 
   window.URL.revokeObjectURL(downloadUrl);
 }
+
+export async function verifyCandidateDocuments(
+  candidateId: string,
+): Promise<void> {
+  await candidateApi.post(
+    `/api/candidates/${candidateId}/documents/verify`,
+  );
+}
