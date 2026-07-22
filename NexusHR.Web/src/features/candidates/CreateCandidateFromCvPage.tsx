@@ -15,6 +15,7 @@ import {
   Typography,
 } from "@mui/material";
 import {
+  ArrowBack,
   AutoAwesome,
   CloudUpload,
   PersonAdd,
@@ -25,6 +26,7 @@ import {
   uploadCandidateCv,
 } from "./candidateService";
 import type { CreateCandidateRequest } from "./candidateTypes";
+import {Link as RouterLink,} from "react-router-dom";
 
 const initialForm: CreateCandidateRequest = {
   firstName: "",
@@ -178,6 +180,14 @@ async function handleSave() {
       }}
     >
       <Container maxWidth="md">
+        <Button
+  component={RouterLink}
+  to="/candidates"
+  startIcon={<ArrowBack />}
+  sx={{ mb: 2 }}
+>
+  Aday listesine dön
+</Button>
         <Stack spacing={1} sx={{ mb: 4 }}>
           <Chip
             icon={<AutoAwesome />}
