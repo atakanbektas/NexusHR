@@ -87,12 +87,19 @@ services:
       Minio__SecretKey: nexushr-dev-secret
       Minio__BucketName: candidate-documents
       Minio__UseSsl: "false"
+
+      Keycloak__Authority: http://localhost:8080/realms/nexushr
+      Keycloak__MetadataAddress: http://keycloak:8080/realms/nexushr/.well-known/openid-configuration
+      Keycloak__ClientId: nexushr-web
+      Keycloak__RequireHttpsMetadata: "false"
     ports:
       - "5211:8080"
     depends_on:
       candidate-db:
         condition: service_healthy
       candidate-storage:
+        condition: service_started
+      keycloak:
         condition: service_started
 
   gateway:
@@ -106,10 +113,17 @@ services:
       ASPNETCORE_URLS: http://+:8080
 
       ReverseProxy__Clusters__candidate-cluster__Destinations__candidate-api__Address: http://candidate-api:8080/
+
+      Keycloak__Authority: http://localhost:8080/realms/nexushr
+      Keycloak__MetadataAddress: http://keycloak:8080/realms/nexushr/.well-known/openid-configuration
+      Keycloak__ClientId: nexushr-web
+      Keycloak__RequireHttpsMetadata: "false"
     ports:
       - "5000:8080"
     depends_on:
       candidate-api:
+        condition: service_started
+      keycloak:
         condition: service_started
 
   candidate-web:
@@ -118,6 +132,9 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_BASE_URL: http://localhost:5000
+        VITE_KEYCLOAK_URL: http://localhost:8080
+        VITE_KEYCLOAK_REALM: nexushr
+        VITE_KEYCLOAK_CLIENT_ID: nexushr-web
     image: nexushr-candidate-web
     container_name: nexushr-candidate-web
     ports:

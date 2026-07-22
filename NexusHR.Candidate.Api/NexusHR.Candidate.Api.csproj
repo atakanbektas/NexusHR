@@ -19,6 +19,7 @@
   <ItemGroup>
     <ProjectReference Include="..\NexusHR.Candidate.Application\NexusHR.Candidate.Application.csproj" />
     <ProjectReference Include="..\NexusHR.Candidate.Infrastructure\NexusHR.Candidate.Infrastructure.csproj" />
+    <ProjectReference Include="..\NexusHR.BuildingBlocks.Security\NexusHR.BuildingBlocks.Security.csproj" />
   </ItemGroup>
 
 </Project>
