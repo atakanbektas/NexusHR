@@ -22,9 +22,9 @@ import {
 import {
   createCandidate,
   extractCandidateFromCv,
+  uploadCandidateCv,
 } from "./candidateService";
 import type { CreateCandidateRequest } from "./candidateTypes";
-import { uploadCandidateCv } from "../../api/candidateApi";
 
 const initialForm: CreateCandidateRequest = {
   firstName: "",

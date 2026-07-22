@@ -1,56 +1,136 @@
 ﻿using NexusHR.Candidate.Domain.Candidates;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
-namespace NexusHR.Candidate.UnitTests.Candidates
+namespace NexusHR.Candidate.UnitTests.Candidates;
+
+public sealed class CandidateTests
 {
-    public class CandidateTests
+    [Fact]
+    public void Constructor_ShouldCreateCandidate_WithDraftStatus()
     {
-        [Fact]
-        public void Constructor_ShouldCreateCandidate_WithDraftStatus()
-        {
-            var candidate = new Domain.Candidates.Candidate(
-                Guid.NewGuid(),
-                "Atakan",
-                "Bektaş",
-                "atakan@example.com",
-                "05555555555");
+        var candidate = CreateCandidate();
 
-            Assert.Equal(CandidateStatus.Draft, candidate.Status);
-            Assert.Equal("atakan@example.com", candidate.Email);
-        }
+        Assert.Equal(
+            CandidateStatus.Draft,
+            candidate.Status);
 
-        [Fact]
-        public void MarkReadyForHiring_ShouldThrow_WhenDocumentsAreNotPending()
-        {
-            var candidate = new Domain.Candidates.Candidate(
-                Guid.NewGuid(),
-                "Atakan",
-                "Bektaş",
-                "atakan@example.com",
-                "05555555555");
+        Assert.Equal(
+            "atakan@example.com",
+            candidate.Email);
+    }
 
-            Assert.Throws<InvalidOperationException>(
-                candidate.MarkReadyForHiring);
-        }
+    [Fact]
+    public void MarkDocumentsPending_ShouldChangeStatus_WhenCandidateIsDraft()
+    {
+        var candidate = CreateCandidate();
 
-        [Fact]
-        public void Candidate_ShouldBecomeReadyForHiring_WhenDocumentsArePending()
-        {
-            var candidate = new Domain.Candidates.Candidate(
-                Guid.NewGuid(),
-                "Atakan",
-                "Bektaş",
-                "atakan@example.com",
-                "05555555555");
+        candidate.MarkDocumentsPending();
 
-            candidate.MarkDocumentsPending();
-            candidate.MarkReadyForHiring();
+        Assert.Equal(
+            CandidateStatus.DocumentsPending,
+            candidate.Status);
 
-            Assert.Equal(
-                CandidateStatus.ReadyForHiring,
-                candidate.Status);
-        }
+        Assert.NotNull(candidate.UpdatedAtUtc);
+    }
+
+    [Fact]
+    public void MarkDocumentsPending_ShouldThrow_WhenCandidateIsNotDraft()
+    {
+        var candidate = CreateCandidate();
+
+        candidate.MarkDocumentsPending();
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            candidate.MarkDocumentsPending);
+
+        Assert.Equal(
+            "Yalnızca taslak aday belge bekliyor durumuna alınabilir.",
+            exception.Message);
+    }
+
+    [Fact]
+    public void MarkReadyForHiring_ShouldThrow_WhenCandidateIsDraft()
+    {
+        var candidate = CreateCandidate();
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            candidate.MarkReadyForHiring);
+
+        Assert.Equal(
+            "Aday belge bekliyor durumunda olmalıdır.",
+            exception.Message);
+    }
+
+    [Fact]
+    public void MarkReadyForHiring_ShouldChangeStatus_WhenDocumentsArePending()
+    {
+        var candidate = CreateCandidate();
+
+        candidate.MarkDocumentsPending();
+        candidate.MarkReadyForHiring();
+
+        Assert.Equal(
+            CandidateStatus.ReadyForHiring,
+            candidate.Status);
+
+        Assert.NotNull(candidate.UpdatedAtUtc);
+    }
+
+    [Fact]
+    public void MarkReadyForHiring_ShouldThrow_WhenCandidateIsAlreadyReady()
+    {
+        var candidate = CreateCandidate();
+
+        candidate.MarkDocumentsPending();
+        candidate.MarkReadyForHiring();
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            candidate.MarkReadyForHiring);
+
+        Assert.Equal(
+            "Aday belge bekliyor durumunda olmalıdır.",
+            exception.Message);
+    }
+
+    [Fact]
+    public void UpdateInformation_ShouldThrow_WhenCandidateIsArchived()
+    {
+        var candidate = CreateCandidate();
+
+        candidate.Archive();
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => candidate.UpdateInformation(
+                "Mehmet",
+                "Yılmaz",
+                "mehmet@example.com",
+                "05551112233"));
+
+        Assert.Equal(
+            "Arşivlenmiş aday güncellenemez.",
+            exception.Message);
+    }
+
+    [Fact]
+    public void Archive_ShouldChangeStatus_ToArchived()
+    {
+        var candidate = CreateCandidate();
+
+        candidate.Archive();
+
+        Assert.Equal(
+            CandidateStatus.Archived,
+            candidate.Status);
+
+        Assert.NotNull(candidate.UpdatedAtUtc);
+    }
+
+    private static Domain.Candidates.Candidate CreateCandidate()
+    {
+        return new Domain.Candidates.Candidate(
+            Guid.NewGuid(),
+            "Atakan",
+            "Bektaş",
+            "atakan@example.com",
+            "05555555555");
     }
 }
