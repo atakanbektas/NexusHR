@@ -4,6 +4,7 @@ import {
   Route,
   Routes,
 } from "react-router-dom";
+import AuthBar from "./auth/AuthBar";
 import CandidateDetailPage from
   "./features/candidates/CandidateDetailPage";
 import CandidateListPage from
@@ -14,6 +15,8 @@ import CreateCandidateFromCvPage from
 function App() {
   return (
     <BrowserRouter>
+      <AuthBar />
+
       <Routes>
         <Route
           path="/"

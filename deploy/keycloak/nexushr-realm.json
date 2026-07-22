@@ -1,0 +1,175 @@
+{
+  "realm": "nexushr",
+  "displayName": "NexusHR",
+  "enabled": true,
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "rememberMe": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "HrSpecialist",
+        "description": "Aday ve işe giriş işlemlerini yönetir."
+      },
+      {
+        "name": "HrManager",
+        "description": "İşe alım süreçlerini onaylar."
+      },
+      {
+        "name": "DepartmentManager",
+        "description": "Kendi birimine ait işe alımları onaylar."
+      },
+      {
+        "name": "ItSpecialist",
+        "description": "Ekipman ve kullanıcı hesabı görevlerini yönetir."
+      },
+      {
+        "name": "FinanceSpecialist",
+        "description": "IBAN ve bordro hazırlık işlemlerini yönetir."
+      },
+      {
+        "name": "Admin",
+        "description": "Sistem ayarlarını ve kullanıcıları yönetir."
+      },
+      {
+        "name": "Auditor",
+        "description": "Süreçleri salt okunur olarak inceler."
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "nexushr-web",
+      "name": "NexusHR Web",
+      "description": "NexusHR React uygulaması",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:5173/*"
+      ],
+      "webOrigins": [
+        "http://localhost:5173"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:5173/*"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "hr.specialist",
+      "email": "hr.specialist@nexushr.local",
+      "firstName": "İK",
+      "lastName": "Uzmanı",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "NexusHR123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "HrSpecialist"
+      ]
+    },
+    {
+      "username": "hr.manager",
+      "email": "hr.manager@nexushr.local",
+      "firstName": "İK",
+      "lastName": "Yöneticisi",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "NexusHR123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "HrManager"
+      ]
+    },
+    {
+      "username": "department.manager",
+      "email": "department.manager@nexushr.local",
+      "firstName": "Birim",
+      "lastName": "Yöneticisi",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "NexusHR123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "DepartmentManager"
+      ]
+    },
+    {
+      "username": "it.specialist",
+      "email": "it.specialist@nexushr.local",
+      "firstName": "IT",
+      "lastName": "Uzmanı",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "NexusHR123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "ItSpecialist"
+      ]
+    },
+    {
+      "username": "finance.specialist",
+      "email": "finance.specialist@nexushr.local",
+      "firstName": "Finans",
+      "lastName": "Uzmanı",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "NexusHR123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "FinanceSpecialist"
+      ]
+    },
+    {
+      "username": "auditor",
+      "email": "auditor@nexushr.local",
+      "firstName": "Sistem",
+      "lastName": "Denetçisi",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "NexusHR123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "Auditor"
+      ]
+    }
+  ]
+}

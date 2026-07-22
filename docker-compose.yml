@@ -18,6 +18,45 @@ services:
       timeout: 5s
       retries: 5
 
+  identity-db:
+    image: postgres:16-alpine
+    container_name: nexushr-identity-db
+    environment:
+      POSTGRES_DB: nexushr_identity
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - identity-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U postgres -d nexushr_identity
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.0
+    container_name: nexushr-keycloak
+    command: start-dev --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://identity-db:5432/nexushr_identity
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: postgres
+
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./deploy/keycloak/nexushr-realm.json:/opt/keycloak/data/import/nexushr-realm.json:ro
+    depends_on:
+      identity-db:
+        condition: service_healthy
+
   candidate-storage:
     image: minio/minio:latest
     container_name: nexushr-candidate-storage
@@ -86,7 +125,10 @@ services:
     depends_on:
       gateway:
         condition: service_started
+      keycloak:
+        condition: service_started
 
 volumes:
   candidate-db-data:
+  identity-db-data:
   candidate-storage-data:

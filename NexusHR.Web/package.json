@@ -16,6 +16,7 @@
     "@mui/material": "^9.2.0",
     "@mui/system": "^9.2.0",
     "axios": "^1.18.1",
+    "keycloak-js": "^26.2.4",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.1"
