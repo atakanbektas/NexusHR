@@ -1,6 +1,7 @@
 import { candidateApi } from "../../api/candidateApi";
 import type {
   CandidateDetail,
+  CandidateStatus,
   CreateCandidateRequest,
   CreateCandidateResponse,
   ExtractedCandidateDraft,
@@ -52,6 +53,8 @@ export async function uploadCandidateCv(
 export async function getCandidates(
   page: number,
   pageSize: number,
+  search?: string,
+  status?: CandidateStatus,
 ): Promise<GetCandidatesResponse> {
   const response =
     await candidateApi.get<GetCandidatesResponse>(
@@ -60,6 +63,8 @@ export async function getCandidates(
         params: {
           page,
           pageSize,
+          search: search?.trim() || undefined,
+          status: status || undefined,
         },
       },
     );
