@@ -41,6 +41,10 @@ import type {
   CandidateListItem,
   CandidateStatus,
 } from "./candidateTypes";
+import {
+  hasAnyRole,
+  NexusHrRoles,
+} from "../../auth/roles";
 
 const pageSize = 10;
 
@@ -64,6 +68,11 @@ function getErrorMessage(error: unknown): string {
 
   return "Adaylar yüklenirken beklenmeyen bir hata oluştu.";
 }
+
+const canCreateCandidate =
+  hasAnyRole([
+    NexusHrRoles.HrSpecialist,
+  ]);
 
 export default function CandidateListPage() {
   const [candidates, setCandidates] =
@@ -206,15 +215,17 @@ export default function CandidateListPage() {
             </Typography>
           </Stack>
 
-          <Button
-            component={Link}
-            to="/candidates/new"
-            variant="contained"
-            size="large"
-            startIcon={<Add />}
-          >
-            Yeni aday oluştur
-          </Button>
+{canCreateCandidate && (
+  <Button
+    component={Link}
+    to="/candidates/new"
+    variant="contained"
+    size="large"
+    startIcon={<Add />}
+  >
+    Yeni aday oluştur
+  </Button>
+)}
         </Stack>
 
         <Card
@@ -398,24 +409,24 @@ export default function CandidateListPage() {
                   : "İlk aday kaydını oluşturarak başlayabilirsiniz."}
               </Typography>
 
-              {hasActiveFilter ? (
-                <Button
-                  variant="outlined"
-                  startIcon={<Clear />}
-                  onClick={handleClearFilters}
-                >
-                  Filtreleri temizle
-                </Button>
-              ) : (
-                <Button
-                  component={Link}
-                  to="/candidates/new"
-                  variant="contained"
-                  startIcon={<Add />}
-                >
-                  İlk adayı oluştur
-                </Button>
-              )}
+{hasActiveFilter ? (
+  <Button
+    variant="outlined"
+    startIcon={<Clear />}
+    onClick={handleClearFilters}
+  >
+    Filtreleri temizle
+  </Button>
+) : canCreateCandidate ? (
+  <Button
+    component={Link}
+    to="/candidates/new"
+    variant="contained"
+    startIcon={<Add />}
+  >
+    İlk adayı oluştur
+  </Button>
+) : null}
             </Stack>
           ) : (
             <>

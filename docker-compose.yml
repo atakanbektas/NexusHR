@@ -18,6 +18,45 @@ services:
       timeout: 5s
       retries: 5
 
+  identity-db:
+    image: postgres:16-alpine
+    container_name: nexushr-identity-db
+    environment:
+      POSTGRES_DB: nexushr_identity
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - identity-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U postgres -d nexushr_identity
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.0
+    container_name: nexushr-keycloak
+    command: start-dev --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://identity-db:5432/nexushr_identity
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: postgres
+
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./deploy/keycloak/nexushr-realm.json:/opt/keycloak/data/import/nexushr-realm.json:ro
+    depends_on:
+      identity-db:
+        condition: service_healthy
+
   candidate-storage:
     image: minio/minio:latest
     container_name: nexushr-candidate-storage
@@ -48,6 +87,11 @@ services:
       Minio__SecretKey: nexushr-dev-secret
       Minio__BucketName: candidate-documents
       Minio__UseSsl: "false"
+
+      Keycloak__Authority: http://localhost:8080/realms/nexushr
+      Keycloak__MetadataAddress: http://keycloak:8080/realms/nexushr/.well-known/openid-configuration
+      Keycloak__ClientId: nexushr-web
+      Keycloak__RequireHttpsMetadata: "false"
     ports:
       - "5211:8080"
     depends_on:
@@ -55,21 +99,53 @@ services:
         condition: service_healthy
       candidate-storage:
         condition: service_started
+      keycloak:
+        condition: service_started
+
+  gateway:
+    build:
+      context: .
+      dockerfile: NexusHR.Gateway/Dockerfile
+    image: nexushr-gateway
+    container_name: nexushr-gateway
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+
+      ReverseProxy__Clusters__candidate-cluster__Destinations__candidate-api__Address: http://candidate-api:8080/
+
+      Keycloak__Authority: http://localhost:8080/realms/nexushr
+      Keycloak__MetadataAddress: http://keycloak:8080/realms/nexushr/.well-known/openid-configuration
+      Keycloak__ClientId: nexushr-web
+      Keycloak__RequireHttpsMetadata: "false"
+    ports:
+      - "5000:8080"
+    depends_on:
+      candidate-api:
+        condition: service_started
+      keycloak:
+        condition: service_started
 
   candidate-web:
     build:
       context: ./NexusHR.Web
       dockerfile: Dockerfile
       args:
-        VITE_CANDIDATE_API_URL: http://localhost:5211
+        VITE_API_BASE_URL: http://localhost:5000
+        VITE_KEYCLOAK_URL: http://localhost:8080
+        VITE_KEYCLOAK_REALM: nexushr
+        VITE_KEYCLOAK_CLIENT_ID: nexushr-web
     image: nexushr-candidate-web
     container_name: nexushr-candidate-web
     ports:
       - "5173:80"
     depends_on:
-      candidate-api:
+      gateway:
+        condition: service_started
+      keycloak:
         condition: service_started
 
 volumes:
   candidate-db-data:
+  identity-db-data:
   candidate-storage-data:

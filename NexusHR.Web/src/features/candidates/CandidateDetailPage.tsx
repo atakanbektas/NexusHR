@@ -33,8 +33,26 @@ import {
 import type {
   CandidateDetail,
 } from "./candidateTypes";
+import {
+  CandidateCvReaderRoles,
+  hasAnyRole,
+  NexusHrRoles,
+} from "../../auth/roles";
+
+
+
+
 
 export default function CandidateDetailPage() {
+
+      const canDownloadCv =
+  hasAnyRole(CandidateCvReaderRoles);
+
+const canVerifyDocuments =
+  hasAnyRole([
+    NexusHrRoles.HrSpecialist,
+  ]);
+
   const { id } = useParams();
 
   const [candidate, setCandidate] =
@@ -60,6 +78,8 @@ export default function CandidateDetailPage() {
       setIsLoading(false);
       return;
     }
+
+
 
     let isActive = true;
 
@@ -346,26 +366,29 @@ export default function CandidateDetailPage() {
                 }}
                 spacing={2}
               >
-                <Button
-                  variant="outlined"
-                  startIcon={
-                    isDownloading
-                      ? <CircularProgress size={18} />
-                      : <Download />
-                  }
-                  disabled={
-                    isDownloading ||
-                    isVerifying
-                  }
-                  onClick={handleDownloadCv}
-                >
-                  {isDownloading
-                    ? "İndiriliyor"
-                    : "CV’yi indir"}
-                </Button>
+{canDownloadCv && (
+  <Button
+    variant="outlined"
+    startIcon={
+      isDownloading
+        ? <CircularProgress size={18} />
+        : <Download />
+    }
+    disabled={
+      isDownloading ||
+      isVerifying
+    }
+    onClick={handleDownloadCv}
+  >
+    {isDownloading
+      ? "İndiriliyor"
+      : "CV’yi indir"}
+  </Button>
+)}
 
-                {candidate.status ===
-                  "DocumentsPending" && (
+                {canVerifyDocuments &&
+  candidate.status ===
+    "DocumentsPending" && (
                   <Button
                     variant="contained"
                     color="success"

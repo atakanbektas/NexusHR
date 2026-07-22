@@ -1,10 +1,15 @@
 <Solution>
-  <Folder Name="/building-blocks/" />
+  <Folder Name="/building-blocks/">
+    <Project Path="NexusHR.BuildingBlocks.Security/NexusHR.BuildingBlocks.Security.csproj" />
+  </Folder>
   <Folder Name="/docs/" />
   <Folder Name="/Solution Items/">
     <File Path="docker-compose.yml" />
   </Folder>
   <Folder Name="/src/" />
+  <Folder Name="/src/Gateway/">
+    <Project Path="NexusHR.Gateway/NexusHR.Gateway.csproj" />
+  </Folder>
   <Folder Name="/src/Services/" />
   <Folder Name="/src/Services/Candidate/">
     <Project Path="NexusHR.Candidate.Api/NexusHR.Candidate.Api.csproj" />

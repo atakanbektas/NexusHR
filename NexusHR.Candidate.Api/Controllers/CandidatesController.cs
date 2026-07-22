@@ -10,17 +10,21 @@ using NexusHR.Candidate.Application.Candidates.UploadCandidateCv;
 using NexusHR.Candidate.Application.Candidates.DownloadCandidateCv;
 using NexusHR.Candidate.Domain.Candidates;
 using NexusHR.Candidate.Application.Candidates.VerifyCandidateDocuments;
+using Microsoft.AspNetCore.Authorization;
+using NexusHR.BuildingBlocks.Security;
 
 namespace NexusHR.Candidate.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/candidates")]
 public sealed class CandidatesController(
     ISender sender)
     : ControllerBase
 {
 
-
+    [Authorize(
+        Roles = NexusHrRoles.CandidateReaders)]
     [HttpGet("{id:guid}", Name = nameof(GetCandidateById))]
     public async Task<IActionResult> GetCandidateById(
     Guid id,
@@ -45,6 +49,8 @@ public sealed class CandidatesController(
     }
 
 
+    [Authorize(
+        Roles = NexusHrRoles.CandidateReaders)]
     [HttpGet]
     public async Task<IActionResult> GetCandidates(
     [FromQuery] int page = 1,
@@ -66,8 +72,8 @@ public sealed class CandidatesController(
         return Ok(response);
     }
 
-
-
+    [Authorize(
+        Roles = NexusHrRoles.CandidateEditors)]
     [HttpPost]
     public async Task<IActionResult> Create(
         CreateCandidateRequest request,
@@ -112,6 +118,9 @@ public sealed class CandidatesController(
             });
     }
 
+
+    [Authorize(
+        Roles = NexusHrRoles.CandidateEditors)]
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(
     Guid id,
@@ -155,6 +164,8 @@ public sealed class CandidatesController(
         };
     }
 
+    [Authorize(
+        Roles = NexusHrRoles.CandidateEditors)]
     [HttpPost("extract-cv")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(6 * 1024 * 1024)]
@@ -269,6 +280,9 @@ public sealed class CandidatesController(
     }
 
 
+    [Authorize(
+        Roles =
+            "HrSpecialist,HrManager,Auditor")]
     [HttpGet("{id:guid}/documents/cv")]
     public async Task<IActionResult> DownloadCv(
     Guid id,
@@ -296,6 +310,8 @@ public sealed class CandidatesController(
             response.FileName);
     }
 
+    [Authorize(
+        Roles = NexusHrRoles.CandidateEditors)]
     [HttpPost("{id:guid}/documents/verify")]
     public async Task<IActionResult> VerifyDocuments(
     Guid id,
