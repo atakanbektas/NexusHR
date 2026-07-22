@@ -93,7 +93,6 @@ internal sealed class UploadCandidateCvCommandHandler(
         }
 
         candidate.MarkDocumentsPending();
-        candidate.MarkReadyForHiring();
 
         await candidateRepository.UpdateAsync(
             candidate,

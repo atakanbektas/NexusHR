@@ -1,3 +1,9 @@
+export type CandidateStatus =
+  | "Draft"
+  | "DocumentsPending"
+  | "ReadyForHiring"
+  | "Archived";
+
 export interface ExtractedCandidateDraft {
   firstName: string | null;
   lastName: string | null;
@@ -16,12 +22,6 @@ export interface CreateCandidateResponse {
   id: string;
 }
 
-export type CandidateStatus =
-  | "Draft"
-  | "DocumentsPending"
-  | "ReadyForHiring"
-  | "Archived";
-
 export interface CandidateListItem {
   id: string;
   firstName: string;
@@ -39,13 +39,13 @@ export interface GetCandidatesResponse {
   totalCount: number;
 }
 
-export interface CandidateDetail extends CandidateListItem {
+export interface CandidateDetail {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber: string;
+  status: CandidateStatus;
+  createdAtUtc: string;
   updatedAtUtc: string | null;
-}
-
-export interface GetCandidatesRequest {
-  page: number;
-  pageSize: number;
-  search?: string;
-  status?: CandidateStatus;
 }

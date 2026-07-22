@@ -9,6 +9,7 @@ using NexusHR.Candidate.Application.Candidates.ExtractCandidateFromCv;
 using NexusHR.Candidate.Application.Candidates.UploadCandidateCv;
 using NexusHR.Candidate.Application.Candidates.DownloadCandidateCv;
 using NexusHR.Candidate.Domain.Candidates;
+using NexusHR.Candidate.Application.Candidates.VerifyCandidateDocuments;
 
 namespace NexusHR.Candidate.Api.Controllers;
 
@@ -293,6 +294,43 @@ public sealed class CandidatesController(
             response.Content,
             response.ContentType,
             response.FileName);
+    }
+
+    [HttpPost("{id:guid}/documents/verify")]
+    public async Task<IActionResult> VerifyDocuments(
+    Guid id,
+    CancellationToken cancellationToken)
+    {
+        var command = new VerifyCandidateDocumentsCommand(id);
+
+        var response = await sender.Send(
+            command,
+            cancellationToken);
+
+        if (response.IsSuccess)
+        {
+            return NoContent();
+        }
+
+        var errorResponse = new
+        {
+            code = response.ErrorCode,
+            errors = response.Errors
+        };
+
+        return response.ErrorCode switch
+        {
+            "Candidate.NotFound" =>
+                NotFound(errorResponse),
+
+            "Candidate.CvMissing" =>
+                BadRequest(errorResponse),
+
+            "Candidate.InvalidStatus" =>
+                Conflict(errorResponse),
+
+            _ => BadRequest(errorResponse)
+        };
     }
 
 }

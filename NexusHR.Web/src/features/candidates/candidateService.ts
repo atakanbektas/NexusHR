@@ -1,10 +1,9 @@
 import { candidateApi } from "../../api/candidateApi";
 import type {
+  CandidateDetail,
   CreateCandidateRequest,
   CreateCandidateResponse,
-  CandidateDetail,
   ExtractedCandidateDraft,
-  GetCandidatesRequest,
   GetCandidatesResponse,
 } from "./candidateTypes";
 
@@ -36,18 +35,31 @@ export async function createCandidate(
   return response.data;
 }
 
+export async function uploadCandidateCv(
+  candidateId: string,
+  file: File,
+): Promise<void> {
+  const formData = new FormData();
+
+  formData.append("file", file);
+
+  await candidateApi.post(
+    `/api/candidates/${candidateId}/documents/cv`,
+    formData,
+  );
+}
+
 export async function getCandidates(
-  request: GetCandidatesRequest,
+  page: number,
+  pageSize: number,
 ): Promise<GetCandidatesResponse> {
   const response =
     await candidateApi.get<GetCandidatesResponse>(
       "/api/candidates",
       {
         params: {
-          page: request.page,
-          pageSize: request.pageSize,
-          search: request.search || undefined,
-          status: request.status || undefined,
+          page,
+          pageSize,
         },
       },
     );
@@ -58,24 +70,12 @@ export async function getCandidates(
 export async function getCandidateById(
   candidateId: string,
 ): Promise<CandidateDetail> {
-  const response = await candidateApi.get<CandidateDetail>(
-    `/api/candidates/${candidateId}`,
-  );
+  const response =
+    await candidateApi.get<CandidateDetail>(
+      `/api/candidates/${candidateId}`,
+    );
 
   return response.data;
-}
-
-export async function uploadCandidateCv(
-  candidateId: string,
-  file: File,
-): Promise<void> {
-  const formData = new FormData();
-  formData.append("file", file);
-
-  await candidateApi.post(
-    `/api/candidates/${candidateId}/documents/cv`,
-    formData,
-  );
 }
 
 export async function downloadCandidateCv(
@@ -84,15 +84,24 @@ export async function downloadCandidateCv(
 ): Promise<void> {
   const response = await candidateApi.get<Blob>(
     `/api/candidates/${candidateId}/documents/cv`,
-    { responseType: "blob" },
+    {
+      responseType: "blob",
+    },
   );
 
-  const downloadUrl = URL.createObjectURL(response.data);
-  const anchor = document.createElement("a");
-  anchor.href = downloadUrl;
-  anchor.download = fileName;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(downloadUrl);
+  const downloadUrl = window.URL.createObjectURL(
+    response.data,
+  );
+
+  const link = document.createElement("a");
+
+  link.href = downloadUrl;
+  link.download = fileName;
+
+  document.body.appendChild(link);
+
+  link.click();
+  link.remove();
+
+  window.URL.revokeObjectURL(downloadUrl);
 }

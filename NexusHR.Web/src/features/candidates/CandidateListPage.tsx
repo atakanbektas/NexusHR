@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import axios from "axios";
 import {
   Alert,
   Box,
   Button,
   Card,
-  CardContent,
   Chip,
   CircularProgress,
   Container,
-  MenuItem,
   Pagination,
   Stack,
   Table,
@@ -17,195 +17,314 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  TextField,
   Typography,
 } from "@mui/material";
-import { Add, Search } from "@mui/icons-material";
-import { Link as RouterLink } from "react-router-dom";
-import { getCandidates } from "./candidateService";
 import {
-  candidateStatusColors,
-  candidateStatusLabels,
-  candidateStatuses,
-} from "./candidateStatus";
+  Add,
+  PeopleAlt,
+} from "@mui/icons-material";
+import { getCandidates } from "./candidateService";
 import type {
   CandidateListItem,
-  CandidateStatus,
 } from "./candidateTypes";
 
 const pageSize = 10;
 
+function getStatusLabel(status: string): string {
+  switch (status) {
+    case "Draft":
+      return "Taslak";
+
+    case "DocumentsPending":
+      return "Belge Kontrolü Bekliyor";
+
+    case "ReadyForHiring":
+      return "İşe Alıma Hazır";
+
+    case "Archived":
+      return "Arşivlendi";
+
+    default:
+      return status;
+  }
+}
+
+function getStatusColor(
+  status: string,
+): "default" | "warning" | "success" {
+  switch (status) {
+    case "DocumentsPending":
+      return "warning";
+
+    case "ReadyForHiring":
+      return "success";
+
+    default:
+      return "default";
+  }
+}
+
+function getErrorMessage(error: unknown): string {
+  if (axios.isAxiosError(error)) {
+    const response = error.response?.data as
+      | { errors?: string[]; message?: string }
+      | undefined;
+
+    if (response?.errors?.length) {
+      return response.errors.join(" ");
+    }
+
+    if (response?.message) {
+      return response.message;
+    }
+  }
+
+  return "Adaylar yüklenirken beklenmeyen bir hata oluştu.";
+}
+
 export default function CandidateListPage() {
-  const [items, setItems] = useState<CandidateListItem[]>([]);
+  const [candidates, setCandidates] = useState<
+    CandidateListItem[]
+  >([]);
+
   const [page, setPage] = useState(1);
+
   const [totalCount, setTotalCount] = useState(0);
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<CandidateStatus | "">("");
+
   const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const [errorMessage, setErrorMessage] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
-    let isActive = true;
+    let isCancelled = false;
 
-    const timer = window.setTimeout(async () => {
+    async function loadCandidates() {
       setIsLoading(true);
       setErrorMessage(null);
 
       try {
-        const response = await getCandidates({
+        const response = await getCandidates(
           page,
           pageSize,
-          search: search.trim() || undefined,
-          status: status || undefined,
-        });
+        );
 
-        if (isActive) {
-          setItems(response.items);
+        if (!isCancelled) {
+          setCandidates(response.items);
           setTotalCount(response.totalCount);
         }
-      } catch {
-        if (isActive) {
-          setErrorMessage("Adaylar yüklenirken bir hata oluştu.");
+      } catch (error) {
+        if (!isCancelled) {
+          setErrorMessage(getErrorMessage(error));
         }
       } finally {
-        if (isActive) {
+        if (!isCancelled) {
           setIsLoading(false);
         }
       }
-    }, 300);
+    }
+
+    void loadCandidates();
 
     return () => {
-      isActive = false;
-      window.clearTimeout(timer);
+      isCancelled = true;
     };
-  }, [page, search, status]);
+  }, [page]);
 
-  const pageCount = Math.max(1, Math.ceil(totalCount / pageSize));
+  const totalPages = Math.ceil(
+    totalCount / pageSize,
+  );
 
   return (
-    <Container maxWidth="lg" sx={{ py: { xs: 3, md: 6 } }}>
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        spacing={2}
-        sx={{ mb: 3, justifyContent: "space-between" }}
-      >
-        <Box>
-          <Typography variant="h4" sx={{ fontWeight: 800 }}>
-            Adaylar
-          </Typography>
-          <Typography color="text.secondary">
-            Adayları arayın, durumlarına göre filtreleyin ve detaylarını inceleyin.
-          </Typography>
-        </Box>
-
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          component={RouterLink}
-          to="/candidates/new"
-          sx={{ alignSelf: { sm: "center" } }}
-        >
-          Yeni aday
-        </Button>
-      </Stack>
-
-      <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-        <CardContent>
-          <Stack
-            direction={{ xs: "column", md: "row" }}
-            spacing={2}
-            sx={{ mb: 3 }}
-          >
-            <TextField
-              fullWidth
-              label="Aday ara"
-              placeholder="Ad, soyad, e-posta veya telefon"
-              value={search}
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setPage(1);
-              }}
-              slotProps={{
-                input: {
-                  startAdornment: <Search color="action" sx={{ mr: 1 }} />,
-                },
-              }}
+    <Box
+      sx={{
+        minHeight: "100vh",
+        background:
+          "linear-gradient(135deg, #f4f7fb 0%, #eef2ff 100%)",
+        py: { xs: 3, md: 7 },
+      }}
+    >
+      <Container maxWidth="lg">
+<Stack
+  direction={{
+    xs: "column",
+    sm: "row",
+  }}
+  spacing={2}
+  sx={{
+    mb: 4,
+    justifyContent: "space-between",
+    alignItems: {
+      xs: "stretch",
+      sm: "center",
+    },
+  }}
+>
+          <Stack spacing={1}>
+            <Chip
+              icon={<PeopleAlt />}
+              label="Aday Yönetimi"
+              color="primary"
+              variant="outlined"
+              sx={{ alignSelf: "flex-start" }}
             />
 
-            <TextField
-              select
-              label="Durum"
-              value={status}
-              onChange={(event) => {
-                setStatus(event.target.value as CandidateStatus | "");
-                setPage(1);
-              }}
-              sx={{ minWidth: { md: 220 } }}
+            <Typography
+              variant="h3"
+              sx={{ fontWeight: 750 }}
             >
-              <MenuItem value="">Tüm durumlar</MenuItem>
-              {candidateStatuses.map((candidateStatus) => (
-                <MenuItem key={candidateStatus} value={candidateStatus}>
-                  {candidateStatusLabels[candidateStatus]}
-                </MenuItem>
-              ))}
-            </TextField>
+              Adaylar
+            </Typography>
+
+            <Typography color="text.secondary">
+              Sistemde bulunan adayları ve işe alım
+              durumlarını görüntüleyin.
+            </Typography>
           </Stack>
 
-          {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
+          <Button
+            component={Link}
+            to="/candidates/new"
+            variant="contained"
+            size="large"
+            startIcon={<Add />}
+          >
+            Yeni aday oluştur
+          </Button>
+        </Stack>
 
+        {errorMessage && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {errorMessage}
+          </Alert>
+        )}
+
+        <Card
+          elevation={0}
+          sx={{
+            border: "1px solid",
+            borderColor: "divider",
+            borderRadius: 4,
+            overflow: "hidden",
+          }}
+        >
           {isLoading ? (
-            <Box sx={{ display: "grid", placeItems: "center", py: 8 }}>
+<Stack
+  spacing={2}
+  sx={{
+    minHeight: 300,
+    p: 4,
+    textAlign: "center",
+    alignItems: "center",
+    justifyContent: "center",
+  }}
+>
               <CircularProgress />
-            </Box>
-          ) : items.length === 0 ? (
-            <Box sx={{ textAlign: "center", py: 8 }}>
-              <Typography variant="h6">Aday bulunamadı</Typography>
+
               <Typography color="text.secondary">
-                Arama veya durum filtrenizi değiştirebilirsiniz.
+                Adaylar yükleniyor...
               </Typography>
-            </Box>
+            </Stack>
+          ) : candidates.length === 0 ? (
+<Stack
+  sx={{
+    p: 3,
+    alignItems: "center",
+  }}
+>
+              <PeopleAlt
+                sx={{
+                  fontSize: 56,
+                  color: "text.disabled",
+                }}
+              />
+
+              <Typography variant="h6">
+                Henüz aday bulunmuyor
+              </Typography>
+
+              <Typography color="text.secondary">
+                İlk aday kaydını oluşturarak
+                başlayabilirsiniz.
+              </Typography>
+
+              <Button
+                component={Link}
+                to="/candidates/new"
+                variant="contained"
+                startIcon={<Add />}
+              >
+                İlk adayı oluştur
+              </Button>
+            </Stack>
           ) : (
             <>
               <TableContainer>
                 <Table>
                   <TableHead>
                     <TableRow>
-                      <TableCell>Aday</TableCell>
-                      <TableCell>İletişim</TableCell>
-                      <TableCell>Durum</TableCell>
-                      <TableCell>Kayıt tarihi</TableCell>
-                      <TableCell align="right">İşlem</TableCell>
+                      <TableCell>
+                        <strong>Ad Soyad</strong>
+                      </TableCell>
+
+                      <TableCell>
+                        <strong>İletişim</strong>
+                      </TableCell>
+
+                      <TableCell>
+                        <strong>Telefon</strong>
+                      </TableCell>
+
+                      <TableCell>
+                        <strong>Durum</strong>
+                      </TableCell>
+
+                      <TableCell>
+                        <strong>Kayıt Tarihi</strong>
+                      </TableCell>
                     </TableRow>
                   </TableHead>
+
                   <TableBody>
-                    {items.map((candidate) => (
-                      <TableRow key={candidate.id} hover>
+                    {candidates.map(candidate => (
+                      <TableRow
+                        key={candidate.id}
+                        hover
+                      >
                         <TableCell>
-                          <Typography sx={{ fontWeight: 700 }}>
-                            {candidate.firstName} {candidate.lastName}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {candidate.email}
+                          <Typography
+                            sx={{ fontWeight: 650 }}
+                          >
+                            {candidate.firstName}{" "}
+                            {candidate.lastName}
                           </Typography>
                         </TableCell>
-                        <TableCell>{candidate.phoneNumber}</TableCell>
+
+                        <TableCell>
+                          {candidate.email}
+                        </TableCell>
+
+                        <TableCell>
+                          {candidate.phoneNumber}
+                        </TableCell>
+
                         <TableCell>
                           <Chip
+                            label={getStatusLabel(
+                              candidate.status,
+                            )}
+                            color={getStatusColor(
+                              candidate.status,
+                            )}
                             size="small"
-                            label={candidateStatusLabels[candidate.status]}
-                            color={candidateStatusColors[candidate.status]}
                           />
                         </TableCell>
+
                         <TableCell>
-                          {new Date(candidate.createdAtUtc).toLocaleDateString("tr-TR")}
-                        </TableCell>
-                        <TableCell align="right">
-                          <Button
-                            component={RouterLink}
-                            to={`/candidates/${candidate.id}`}
-                          >
-                            Detay
-                          </Button>
+                          {new Date(
+                            candidate.createdAtUtc,
+                          ).toLocaleString("tr-TR")}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -213,18 +332,28 @@ export default function CandidateListPage() {
                 </Table>
               </TableContainer>
 
-              <Stack sx={{ mt: 3, alignItems: "center" }}>
-                <Pagination
-                  page={page}
-                  count={pageCount}
-                  color="primary"
-                  onChange={(_, value) => setPage(value)}
-                />
-              </Stack>
+              {totalPages > 1 && (
+                <Box
+                  sx={{
+                    p: 3,
+                    display: "flex",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Pagination
+                    page={page}
+                    count={totalPages}
+                    color="primary"
+                    onChange={(_, newPage) => {
+                      setPage(newPage);
+                    }}
+                  />
+                </Box>
+              )}
             </>
           )}
-        </CardContent>
-      </Card>
-    </Container>
+        </Card>
+      </Container>
+    </Box>
   );
 }
