@@ -4,7 +4,15 @@ import {
   Route,
   Routes,
 } from "react-router-dom";
+import AccessDeniedPage from
+  "./auth/AccessDeniedPage";
 import AuthBar from "./auth/AuthBar";
+import RoleGuard from "./auth/RoleGuard";
+import {
+  CandidateReaderRoles,
+  hasAnyRole,
+  NexusHrRoles,
+} from "./auth/roles";
 import CandidateDetailPage from
   "./features/candidates/CandidateDetailPage";
 import CandidateListPage from
@@ -13,6 +21,11 @@ import CreateCandidateFromCvPage from
   "./features/candidates/CreateCandidateFromCvPage";
 
 function App() {
+  const defaultPath =
+    hasAnyRole(CandidateReaderRoles)
+      ? "/candidates"
+      : "/access-denied";
+
   return (
     <BrowserRouter>
       <AuthBar />
@@ -22,32 +35,61 @@ function App() {
           path="/"
           element={
             <Navigate
-              to="/candidates"
+              to={defaultPath}
               replace
             />
           }
         />
 
         <Route
+          path="/access-denied"
+          element={<AccessDeniedPage />}
+        />
+
+        <Route
           path="/candidates"
-          element={<CandidateListPage />}
+          element={
+            <RoleGuard
+              allowedRoles={
+                CandidateReaderRoles
+              }
+            >
+              <CandidateListPage />
+            </RoleGuard>
+          }
         />
 
         <Route
           path="/candidates/new"
-          element={<CreateCandidateFromCvPage />}
+          element={
+            <RoleGuard
+              allowedRoles={[
+                NexusHrRoles.HrSpecialist,
+              ]}
+            >
+              <CreateCandidateFromCvPage />
+            </RoleGuard>
+          }
         />
 
         <Route
           path="/candidates/:id"
-          element={<CandidateDetailPage />}
+          element={
+            <RoleGuard
+              allowedRoles={
+                CandidateReaderRoles
+              }
+            >
+              <CandidateDetailPage />
+            </RoleGuard>
+          }
         />
 
         <Route
           path="*"
           element={
             <Navigate
-              to="/candidates"
+              to={defaultPath}
               replace
             />
           }
