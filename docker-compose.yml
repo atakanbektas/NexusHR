@@ -56,18 +56,35 @@ services:
       candidate-storage:
         condition: service_started
 
+  gateway:
+    build:
+      context: .
+      dockerfile: NexusHR.Gateway/Dockerfile
+    image: nexushr-gateway
+    container_name: nexushr-gateway
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+
+      ReverseProxy__Clusters__candidate-cluster__Destinations__candidate-api__Address: http://candidate-api:8080/
+    ports:
+      - "5000:8080"
+    depends_on:
+      candidate-api:
+        condition: service_started
+
   candidate-web:
     build:
       context: ./NexusHR.Web
       dockerfile: Dockerfile
       args:
-        VITE_CANDIDATE_API_URL: http://localhost:5211
+        VITE_API_BASE_URL: http://localhost:5000
     image: nexushr-candidate-web
     container_name: nexushr-candidate-web
     ports:
       - "5173:80"
     depends_on:
-      candidate-api:
+      gateway:
         condition: service_started
 
 volumes:
