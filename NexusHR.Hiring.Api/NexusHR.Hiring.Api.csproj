@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.16.16" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NexusHR.Hiring.Application\NexusHR.Hiring.Application.csproj" />
+    <ProjectReference Include="..\NexusHR.Hiring.Infrastructure\NexusHR.Hiring.Infrastructure.csproj" />
+    <ProjectReference Include="..\NexusHR.BuildingBlocks.Security\NexusHR.BuildingBlocks.Security.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,15 +1,17 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using MassTransit;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Minio;
+using NexusHR.Candidate.Application.Abstractions.Documents;
+using NexusHR.Candidate.Application.Abstractions.Messaging;
 using NexusHR.Candidate.Application.Abstractions.Persistence;
+using NexusHR.Candidate.Application.Abstractions.Storage;
+using NexusHR.Candidate.Infrastructure.Documents;
+using NexusHR.Candidate.Infrastructure.Messaging;
 using NexusHR.Candidate.Infrastructure.Persistence;
 using NexusHR.Candidate.Infrastructure.Repositories;
-using NexusHR.Candidate.Application.Abstractions.Documents;
-using NexusHR.Candidate.Infrastructure.Documents;
-using Minio;
-using NexusHR.Candidate.Application.Abstractions.Storage;
 using NexusHR.Candidate.Infrastructure.Storage;
-
 
 namespace NexusHR.Candidate.Infrastructure;
 
@@ -19,8 +21,9 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString(
-            "CandidateDatabase");
+        var connectionString =
+            configuration.GetConnectionString(
+                "CandidateDatabase");
 
         if (string.IsNullOrWhiteSpace(connectionString))
         {
@@ -28,8 +31,8 @@ public static class DependencyInjection
                 "CandidateDatabase connection string bulunamadı.");
         }
 
-        var minioSection = configuration.GetSection(
-    MinioStorageOptions.SectionName);
+        var minioSection =
+            configuration.GetSection("Minio");
 
         var minioOptions = new MinioStorageOptions
         {
@@ -54,12 +57,57 @@ public static class DependencyInjection
                 out var useSsl) && useSsl
         };
 
-        services.AddDbContext<CandidateDbContext>(options =>
-            options.UseNpgsql(connectionString));
+        var rabbitMqSection =
+            configuration.GetSection("RabbitMq");
 
-        var minioUrl = minioOptions.UseSsl
-            ? $"https://{minioOptions.Endpoint}"
-            : $"http://{minioOptions.Endpoint}";
+        var rabbitMqHost = rabbitMqSection["Host"]
+            ?? throw new InvalidOperationException(
+                "RabbitMq:Host ayarı bulunamadı.");
+
+        var rabbitMqVirtualHost =
+            rabbitMqSection["VirtualHost"] ?? "/";
+
+        var rabbitMqUsername = rabbitMqSection["Username"]
+            ?? throw new InvalidOperationException(
+                "RabbitMq:Username ayarı bulunamadı.");
+
+        var rabbitMqPassword = rabbitMqSection["Password"]
+            ?? throw new InvalidOperationException(
+                "RabbitMq:Password ayarı bulunamadı.");
+
+        services.AddDbContext<CandidateDbContext>(
+            options =>
+                options.UseNpgsql(connectionString));
+
+        services.AddMassTransit(configurator =>
+        {
+            configurator
+                .AddEntityFrameworkOutbox<CandidateDbContext>(
+                    outbox =>
+                    {
+                        outbox.UsePostgres();
+                        outbox.UseBusOutbox();
+                    });
+
+            configurator.UsingRabbitMq(
+                (context, rabbitMq) =>
+                {
+                    rabbitMq.Host(
+                        rabbitMqHost,
+                        rabbitMqVirtualHost,
+                        host =>
+                        {
+                            host.Username(
+                                rabbitMqUsername);
+
+                            host.Password(
+                                rabbitMqPassword);
+                        });
+
+                    rabbitMq.ConfigureEndpoints(
+                        context);
+                });
+        });
 
         services.AddSingleton(minioOptions);
 
@@ -78,10 +126,21 @@ public static class DependencyInjection
             ICandidateDocumentStorage,
             MinioCandidateDocumentStorage>();
 
+        services.AddScoped<
+            ICandidateRepository,
+            CandidateRepository>();
 
-        services.AddScoped<ICandidateRepository,CandidateRepository>();
-        services.AddScoped<ICandidateDocumentRepository,CandidateDocumentRepository>();
-        services.AddScoped<ICvInformationExtractor,PdfCvInformationExtractor>();
+        services.AddScoped<
+            ICandidateDocumentRepository,
+            CandidateDocumentRepository>();
+
+        services.AddScoped<
+            ICvInformationExtractor,
+            PdfCvInformationExtractor>();
+
+        services.AddScoped<
+            IIntegrationEventPublisher,
+            MassTransitIntegrationEventPublisher>();
 
         return services;
     }

@@ -18,6 +18,29 @@ services:
       timeout: 5s
       retries: 5
 
+  hiring-db:
+    image: postgres:16-alpine
+    container_name: nexushr-hiring-db
+    environment:
+      POSTGRES_DB: nexushr_hiring
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      RabbitMq__Host: rabbitmq
+      RabbitMq__VirtualHost: /
+      RabbitMq__Username: nexushr
+      RabbitMq__Password: nexushr-dev-secret
+    ports:
+      - "5435:5432"
+    volumes:
+      - hiring-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U postgres -d nexushr_hiring
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   identity-db:
     image: postgres:16-alpine
     container_name: nexushr-identity-db
@@ -46,7 +69,6 @@ services:
       KC_DB_URL: jdbc:postgresql://identity-db:5432/nexushr_identity
       KC_DB_USERNAME: postgres
       KC_DB_PASSWORD: postgres
-
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
     ports:
@@ -56,6 +78,28 @@ services:
     depends_on:
       identity-db:
         condition: service_healthy
+
+  rabbitmq:
+    image: rabbitmq:4.3.3-management
+    container_name: nexushr-rabbitmq
+    hostname: nexushr-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: nexushr
+      RABBITMQ_DEFAULT_PASS: nexushr-dev-secret
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test:
+        - CMD
+        - rabbitmq-diagnostics
+        - -q
+        - ping
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   candidate-storage:
     image: minio/minio:latest
@@ -88,6 +132,11 @@ services:
       Minio__BucketName: candidate-documents
       Minio__UseSsl: "false"
 
+      RabbitMq__Host: rabbitmq
+      RabbitMq__VirtualHost: /
+      RabbitMq__Username: nexushr
+      RabbitMq__Password: nexushr-dev-secret
+
       Keycloak__Authority: http://localhost:8080/realms/nexushr
       Keycloak__MetadataAddress: http://keycloak:8080/realms/nexushr/.well-known/openid-configuration
       Keycloak__ClientId: nexushr-web
@@ -101,6 +150,39 @@ services:
         condition: service_started
       keycloak:
         condition: service_started
+      rabbitmq:
+        condition: service_healthy
+
+  hiring-api:
+    build:
+      context: .
+      dockerfile: NexusHR.Hiring.Api/Dockerfile
+    image: nexushr-hiring-api
+    container_name: nexushr-hiring-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+
+      ConnectionStrings__HiringDatabase: Host=hiring-db;Port=5432;Database=nexushr_hiring;Username=postgres;Password=postgres
+
+      RabbitMq__Host: rabbitmq
+      RabbitMq__VirtualHost: /
+      RabbitMq__Username: nexushr
+      RabbitMq__Password: nexushr-dev-secret
+
+      Keycloak__Authority: http://localhost:8080/realms/nexushr
+      Keycloak__MetadataAddress: http://keycloak:8080/realms/nexushr/.well-known/openid-configuration
+      Keycloak__ClientId: nexushr-web
+      Keycloak__RequireHttpsMetadata: "false"
+    ports:
+      - "5221:8080"
+    depends_on:
+      hiring-db:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
 
   gateway:
     build:
@@ -111,6 +193,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
+      ReverseProxy__Clusters__hiring-cluster__Destinations__hiring-api__Address: http://hiring-api:8080/
 
       ReverseProxy__Clusters__candidate-cluster__Destinations__candidate-api__Address: http://candidate-api:8080/
 
@@ -122,6 +205,8 @@ services:
       - "5000:8080"
     depends_on:
       candidate-api:
+        condition: service_started
+      hiring-api:
         condition: service_started
       keycloak:
         condition: service_started
@@ -147,5 +232,7 @@ services:
 
 volumes:
   candidate-db-data:
+  hiring-db-data:
   identity-db-data:
   candidate-storage-data:
+  rabbitmq-data:

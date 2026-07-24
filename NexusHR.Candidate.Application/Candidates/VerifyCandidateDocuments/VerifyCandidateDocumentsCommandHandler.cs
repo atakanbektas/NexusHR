@@ -1,12 +1,15 @@
 ﻿using MediatR;
+using NexusHR.Candidate.Application.Abstractions.Messaging;
 using NexusHR.Candidate.Application.Abstractions.Persistence;
 using NexusHR.Candidate.Domain.Candidates;
+using NexusHR.Contracts.Candidates;
 
 namespace NexusHR.Candidate.Application.Candidates.VerifyCandidateDocuments;
 
 internal sealed class VerifyCandidateDocumentsCommandHandler(
     ICandidateRepository candidateRepository,
-    ICandidateDocumentRepository documentRepository)
+    ICandidateDocumentRepository documentRepository,
+    IIntegrationEventPublisher integrationEventPublisher)
     : IRequestHandler<
         VerifyCandidateDocumentsCommand,
         VerifyCandidateDocumentsResponse>
@@ -46,6 +49,21 @@ internal sealed class VerifyCandidateDocumentsCommandHandler(
         }
 
         candidate.MarkReadyForHiring();
+
+        var occurredAtUtc = DateTime.UtcNow;
+
+        var integrationEvent =
+            new CandidateReadyForHiringIntegrationEvent(
+                EventId: Guid.NewGuid(),
+                CandidateId: candidate.Id,
+                FirstName: candidate.FirstName,
+                LastName: candidate.LastName,
+                Email: candidate.Email,
+                OccurredAtUtc: occurredAtUtc);
+
+        await integrationEventPublisher.PublishAsync(
+            integrationEvent,
+            cancellationToken);
 
         await candidateRepository.UpdateAsync(
             candidate,

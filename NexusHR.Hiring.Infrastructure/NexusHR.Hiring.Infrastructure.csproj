@@ -1,18 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
-
   <ItemGroup>
-    <ProjectReference Include="..\NexusHR.Candidate.Application\NexusHR.Candidate.Application.csproj" />
-    <ProjectReference Include="..\NexusHR.Candidate.Domain\NexusHR.Candidate.Domain.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Persistence\Migrations\" />
+    <ProjectReference Include="..\NexusHR.Hiring.Application\NexusHR.Hiring.Application.csproj" />
+    <ProjectReference Include="..\NexusHR.Hiring.Domain\NexusHR.Hiring.Domain.csproj" />
+    <ProjectReference Include="..\NexusHR.Contracts\NexusHR.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -20,12 +11,16 @@
     <PackageReference Include="MassTransit.RabbitMQ" Version="8.5.7" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.10" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10">
-      <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Minio" Version="7.0.0" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
-    <PackageReference Include="PdfPig" Version="0.1.15" />
   </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
 
 </Project>

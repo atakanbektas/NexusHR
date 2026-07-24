@@ -3,15 +3,15 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using NexusHR.Candidate.Infrastructure.Persistence;
+using NexusHR.Hiring.Infrastructure.Persistence;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace NexusHR.Candidate.Infrastructure.Persistence.Migrations
+namespace NexusHR.Hiring.Infrastructure.Persistence.Migrations
 {
-    [DbContext(typeof(CandidateDbContext))]
-    partial class CandidateDbContextModelSnapshot : ModelSnapshot
+    [DbContext(typeof(HiringDbContext))]
+    partial class HiringDbContextModelSnapshot : ModelSnapshot
     {
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
@@ -190,11 +190,14 @@ namespace NexusHR.Candidate.Infrastructure.Persistence.Migrations
                     b.ToTable("OutboxState");
                 });
 
-            modelBuilder.Entity("NexusHR.Candidate.Domain.Candidates.Candidate", b =>
+            modelBuilder.Entity("NexusHR.Hiring.Domain.EligibleCandidates.EligibleCandidate", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<Guid>("CandidateId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<DateTime>("BecameEligibleAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
@@ -214,10 +217,68 @@ namespace NexusHR.Candidate.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
-                    b.Property<string>("PhoneNumber")
+                    b.HasKey("CandidateId");
+
+                    b.HasIndex("Email");
+
+                    b.ToTable("eligible_candidates", (string)null);
+                });
+
+            modelBuilder.Entity("NexusHR.Hiring.Domain.HiringProcesses.HiringProcess", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CancellationReason")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Currency")
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<string>("Department")
                         .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<Guid?>("EmployeeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EmploymentType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<decimal?>("GrossSalary")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime?>("OfferExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("OfferRespondedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("OfferSentAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PositionTitle")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<DateOnly?>("ProposedStartDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("RejectionReason")
+                        .HasColumnType("text");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -229,56 +290,12 @@ namespace NexusHR.Candidate.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Email")
-                        .IsUnique();
+                    b.HasIndex("CandidateId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_hiring_processes_candidate_active")
+                        .HasFilter("\"Status\" IN ('Draft', 'OfferPrepared', 'OfferSent', 'OfferAccepted')");
 
-                    b.ToTable("candidates", (string)null);
-                });
-
-            modelBuilder.Entity("NexusHR.Candidate.Domain.Candidates.CandidateDocument", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("CandidateId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ContentType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("ObjectName")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<string>("OriginalFileName")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
-                    b.Property<long>("SizeBytes")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateTime>("UploadedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ObjectName")
-                        .IsUnique();
-
-                    b.HasIndex("CandidateId", "Type")
-                        .IsUnique();
-
-                    b.ToTable("candidate_documents", (string)null);
+                    b.ToTable("hiring_processes", (string)null);
                 });
 
             modelBuilder.Entity("MassTransit.EntityFrameworkCoreIntegration.OutboxMessage", b =>
@@ -293,12 +310,12 @@ namespace NexusHR.Candidate.Infrastructure.Persistence.Migrations
                         .HasPrincipalKey("MessageId", "ConsumerId");
                 });
 
-            modelBuilder.Entity("NexusHR.Candidate.Domain.Candidates.CandidateDocument", b =>
+            modelBuilder.Entity("NexusHR.Hiring.Domain.HiringProcesses.HiringProcess", b =>
                 {
-                    b.HasOne("NexusHR.Candidate.Domain.Candidates.Candidate", null)
+                    b.HasOne("NexusHR.Hiring.Domain.EligibleCandidates.EligibleCandidate", null)
                         .WithMany()
                         .HasForeignKey("CandidateId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 #pragma warning restore 612, 618
