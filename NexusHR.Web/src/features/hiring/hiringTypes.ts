@@ -5,6 +5,7 @@ export type EmploymentType =
   | 4
   | 5;
 
+
 export type HiringProcessStatus =
   | "Draft"
   | "OfferPrepared"
@@ -13,6 +14,13 @@ export type HiringProcessStatus =
   | "OfferRejected"
   | "Cancelled"
   | "Completed";
+
+  
+export interface CandidateHiringProcessStatus {
+  candidateId: string;
+  hiringProcessId: string;
+  status: HiringProcessStatus;
+}
 
 export interface CreateHiringProcessRequest {
   candidateId: string;
@@ -60,3 +68,4 @@ export interface PrepareOfferRequest {
   proposedStartDate: string;
   offerExpiresAtUtc: string;
 }
+

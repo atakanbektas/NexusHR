@@ -27,6 +27,19 @@ public sealed class OfferResponseTokenService
             tokenHash);
     }
 
+    public string Hash(string plainTextToken)
+    {
+        if (string.IsNullOrWhiteSpace(
+                plainTextToken))
+        {
+            throw new ArgumentException(
+                "Teklif cevap token değeri boş olamaz.",
+                nameof(plainTextToken));
+        }
+
+        return ComputeHash(
+            plainTextToken.Trim());
+    }
     public bool Verify(
         string plainTextToken,
         string expectedTokenHash)
@@ -40,7 +53,7 @@ public sealed class OfferResponseTokenService
         }
 
         var calculatedHash =
-            ComputeHash(plainTextToken);
+            Hash(plainTextToken);
 
         try
         {

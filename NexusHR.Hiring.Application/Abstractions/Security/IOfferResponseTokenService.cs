@@ -4,6 +4,8 @@ public interface IOfferResponseTokenService
 {
     GeneratedOfferResponseToken Generate();
 
+    string Hash(string plainTextToken);
+
     bool Verify(
         string plainTextToken,
         string expectedTokenHash);

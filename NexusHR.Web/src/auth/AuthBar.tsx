@@ -7,7 +7,10 @@ import {
   Toolbar,
   Typography,
 } from "@mui/material";
+
+
 import {
+  Login,
   Logout,
   Security,
 } from "@mui/icons-material";
@@ -31,7 +34,52 @@ export default function AuthBar() {
       redirectUri: window.location.origin,
     });
   }
+async function handleLogin() {
+  await keycloak.login({
+    redirectUri: window.location.href,
+  });
+}
 
+if (!keycloak.authenticated) {
+  return (
+    <AppBar
+      position="sticky"
+      elevation={0}
+      color="inherit"
+      sx={{
+        borderBottom: "1px solid",
+        borderColor: "divider",
+      }}
+    >
+      <Toolbar>
+        <Security
+          color="primary"
+          sx={{ mr: 1.5 }}
+        />
+
+        <Typography
+          variant="h6"
+          sx={{
+            fontWeight: 800,
+            flexGrow: 1,
+          }}
+        >
+          NexusHR
+        </Typography>
+
+        <Button
+          color="inherit"
+          startIcon={<Login />}
+          onClick={() => {
+            void handleLogin();
+          }}
+        >
+          Personel girişi
+        </Button>
+      </Toolbar>
+    </AppBar>
+  );
+}
   return (
     <AppBar
       position="sticky"

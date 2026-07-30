@@ -8,6 +8,7 @@ using NexusHR.Hiring.Application.HiringProcesses.GetActiveHiringProcessByCandida
 using NexusHR.Hiring.Application.HiringProcesses.GetHiringProcessById;
 using NexusHR.Hiring.Application.HiringProcesses.PrepareOffer;
 using NexusHR.Hiring.Application.HiringProcesses.SendOffer;
+using NexusHR.Hiring.Application.HiringProcesses.GetActiveHiringProcessByCandidateIds;
 
 namespace NexusHR.Hiring.Api.Controllers;
 
@@ -182,6 +183,43 @@ public sealed class HiringProcessesController(
             }
             });
         }
+
+        return Ok(response);
+    }
+
+    [HttpPost("active/by-candidates")]
+    [Authorize(Roles = NexusHrRoles.HiringReaders)]
+    public async Task<IActionResult>
+    GetActiveByCandidateIds(
+        GetActiveHiringProcessesRequest request,
+        CancellationToken cancellationToken)
+    {
+        var candidateIds =
+            request.CandidateIds?
+                .Where(candidateId =>
+                    candidateId != Guid.Empty)
+                .Distinct()
+                .ToArray()
+            ?? Array.Empty<Guid>();
+
+        if (candidateIds.Length > 100)
+        {
+            return BadRequest(new
+            {
+                code =
+                    "HiringProcess.TooManyCandidates",
+                errors = new[]
+                {
+                "Tek seferde en fazla 100 aday sorgulanabilir."
+            }
+            });
+        }
+
+        var response =
+            await sender.Send(
+                new GetActiveHiringProcessesByCandidateIdsQuery(
+                    candidateIds),
+                cancellationToken);
 
         return Ok(response);
     }

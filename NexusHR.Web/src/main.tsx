@@ -6,17 +6,11 @@ import keycloak from "./auth/keycloak";
 
 async function bootstrap() {
   try {
-    const authenticated =
-      await keycloak.init({
-        onLoad: "login-required",
-        pkceMethod: "S256",
-        checkLoginIframe: false,
-      });
-
-    if (!authenticated) {
-      await keycloak.login();
-      return;
-    }
+    await keycloak.init({
+      onLoad: "check-sso",
+      pkceMethod: "S256",
+      checkLoginIframe: false,
+    });
 
     createRoot(
       document.getElementById("root")!,
@@ -41,7 +35,7 @@ async function bootstrap() {
           padding: 48px;
           text-align: center;
         ">
-          <h2>Oturum başlatılamadı</h2>
+          <h2>Uygulama başlatılamadı</h2>
           <p>Identity servisine ulaşılamadı.</p>
           <button onclick="window.location.reload()">
             Tekrar dene

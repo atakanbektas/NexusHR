@@ -41,7 +41,18 @@ import {
 import CreateHiringProcessDialog from
   "../hiring/CreateHiringProcessDialog";
   
+import {
+  getActiveHiringProcessByCandidateId,
+} from "../hiring/hiringService";
 
+import {
+  hiringStatusColors,
+  hiringStatusLabels,
+} from "../hiring/hiringStatus";
+
+import type {
+  ActiveHiringProcessLookup,
+} from "../hiring/hiringTypes";
 
 
 
@@ -76,6 +87,13 @@ const canVerifyDocuments =
   const [successMessage, setSuccessMessage] =
     useState<string | null>(null);
 
+    const [
+  activeHiringProcess,
+  setActiveHiringProcess,
+] = useState<
+  ActiveHiringProcessLookup | null
+>(null);
+
   useEffect(() => {
     if (!id) {
       setIsLoading(false);
@@ -88,12 +106,20 @@ const canVerifyDocuments =
 
     async function loadCandidate() {
       try {
-        const response =
-          await getCandidateById(id!);
+const [
+  candidateResponse,
+  hiringProcessResponse,
+] = await Promise.all([
+  getCandidateById(id!),
+  getActiveHiringProcessByCandidateId(id!),
+]);
 
-        if (isActive) {
-          setCandidate(response);
-        }
+if (isActive) {
+  setCandidate(candidateResponse);
+  setActiveHiringProcess(
+    hiringProcessResponse,
+  );
+}
       } catch {
         if (isActive) {
           setErrorMessage(
@@ -282,23 +308,31 @@ const canVerifyDocuments =
                   </Typography>
                 </Box>
 
-                <Chip
-                  label={
-                    candidateStatusLabels[
-                      candidate.status
-                    ]
-                  }
-                  color={
-                    candidateStatusColors[
-                      candidate.status
-                    ]
-                  }
-                  sx={{
-                    alignSelf: {
-                      sm: "flex-start",
-                    },
-                  }}
-                />
+<Chip
+  label={
+    activeHiringProcess?.status
+      ? hiringStatusLabels[
+          activeHiringProcess.status
+        ]
+      : candidateStatusLabels[
+          candidate.status
+        ]
+  }
+  color={
+    activeHiringProcess?.status
+      ? hiringStatusColors[
+          activeHiringProcess.status
+        ]
+      : candidateStatusColors[
+          candidate.status
+        ]
+  }
+  sx={{
+    alignSelf: {
+      sm: "flex-start",
+    },
+  }}
+/>
               </Stack>
 
               <Divider sx={{ mb: 3 }} />
@@ -426,10 +460,25 @@ const canVerifyDocuments =
     spacing={2}
     sx={{ mt: 3 }}
   >
-    <Alert severity="success">
-      Bu adayın belgeleri doğrulandı ve
-      aday işe alım sürecine hazır.
-    </Alert>
+<Alert
+  severity={
+    activeHiringProcess?.status ===
+    "OfferAccepted"
+      ? "success"
+      : "info"
+  }
+>
+  {activeHiringProcess?.status ===
+  "OfferAccepted"
+    ? "Aday iş teklifini kabul etti. İşe giriş işlemleri başlatılabilir."
+    : activeHiringProcess?.status
+      ? `Adayın işe alım süreci devam ediyor: ${
+          hiringStatusLabels[
+            activeHiringProcess.status
+          ]
+        }.`
+      : "Adayın belgeleri onaylandı ve işe alım süreci başlatılabilir."}
+</Alert>
 
     {canVerifyDocuments && (
       <Box>

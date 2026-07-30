@@ -45,8 +45,27 @@ import {
   hasAnyRole,
   NexusHrRoles,
 } from "../../auth/roles";
+import {
+  getActiveHiringProcessesByCandidateIds,
+} from "../hiring/hiringService";
+
+import {
+  hiringStatusColors,
+  hiringStatusLabels,
+} from "../hiring/hiringStatus";
+
+import type {
+  HiringProcessStatus,
+} from "../hiring/hiringTypes";
+
 
 const pageSize = 10;
+
+interface CandidateListRow
+  extends CandidateListItem {
+  hiringProcessId: string | null;
+  hiringStatus: HiringProcessStatus | null;
+}
 
 function getErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
@@ -69,14 +88,17 @@ function getErrorMessage(error: unknown): string {
   return "Adaylar yüklenirken beklenmeyen bir hata oluştu.";
 }
 
-const canCreateCandidate =
-  hasAnyRole([
-    NexusHrRoles.HrSpecialist,
-  ]);
 
 export default function CandidateListPage() {
-  const [candidates, setCandidates] =
-    useState<CandidateListItem[]>([]);
+
+  const canCreateCandidate =
+    hasAnyRole([
+      NexusHrRoles.HrSpecialist,
+    ]);
+
+
+const [candidates, setCandidates] =
+  useState<CandidateListRow[]>([]);
 
   const [page, setPage] = useState(1);
 
@@ -109,17 +131,51 @@ export default function CandidateListPage() {
       setErrorMessage(null);
 
       try {
-        const response = await getCandidates(
-          page,
-          pageSize,
-          appliedSearch,
-          appliedStatus || undefined,
-        );
+const response = await getCandidates(
+  page,
+  pageSize,
+  appliedSearch,
+  appliedStatus || undefined,
+);
 
-        if (!isCancelled) {
-          setCandidates(response.items);
-          setTotalCount(response.totalCount);
-        }
+const hiringProcesses =
+  await getActiveHiringProcessesByCandidateIds(
+    response.items.map(
+      candidate => candidate.id,
+    ),
+  );
+
+const hiringProcessByCandidateId =
+  new Map(
+    hiringProcesses.map(
+      hiringProcess => [
+        hiringProcess.candidateId,
+        hiringProcess,
+      ],
+    ),
+  );
+
+const candidateRows =
+  response.items.map(candidate => {
+    const hiringProcess =
+      hiringProcessByCandidateId.get(
+        candidate.id,
+      );
+
+    return {
+      ...candidate,
+      hiringProcessId:
+        hiringProcess?.hiringProcessId ??
+        null,
+      hiringStatus:
+        hiringProcess?.status ?? null,
+    };
+  });
+
+if (!isCancelled) {
+  setCandidates(candidateRows);
+  setTotalCount(response.totalCount);
+}
       } catch (error) {
         if (!isCancelled) {
           setErrorMessage(
@@ -508,19 +564,27 @@ export default function CandidateListPage() {
                           </TableCell>
 
                           <TableCell>
-                            <Chip
-                              label={
-                                candidateStatusLabels[
-                                  candidate.status
-                                ]
-                              }
-                              color={
-                                candidateStatusColors[
-                                  candidate.status
-                                ]
-                              }
-                              size="small"
-                            />
+<Chip
+  label={
+    candidate.hiringStatus
+      ? hiringStatusLabels[
+          candidate.hiringStatus
+        ]
+      : candidateStatusLabels[
+          candidate.status
+        ]
+  }
+  color={
+    candidate.hiringStatus
+      ? hiringStatusColors[
+          candidate.hiringStatus
+        ]
+      : candidateStatusColors[
+          candidate.status
+        ]
+  }
+  size="small"
+/>
                           </TableCell>
 
                           <TableCell>

@@ -32,6 +32,21 @@ internal sealed class HiringProcessRepository(
     }
 
     public async Task<HiringProcessEntity?>
+    GetByOfferResponseTokenHashAsync(
+        string offerResponseTokenHash,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.HiringProcesses
+            .SingleOrDefaultAsync(
+                hiringProcess =>
+                    hiringProcess.OfferResponseTokenHash ==
+                        offerResponseTokenHash &&
+                    hiringProcess.Status ==
+                        HiringProcessStatus.OfferSent,
+                cancellationToken);
+    }
+
+    public async Task<HiringProcessEntity?>
         GetActiveByCandidateIdAsync(
             Guid candidateId,
             CancellationToken cancellationToken)
@@ -77,5 +92,21 @@ internal sealed class HiringProcessRepository(
             hiringProcess);
 
         return Task.CompletedTask;
+    }
+
+    public async Task<
+    IReadOnlyCollection<HiringProcessEntity>>
+    GetActiveByCandidateIdsAsync(
+        IReadOnlyCollection<Guid> candidateIds,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.HiringProcesses
+            .AsNoTracking()
+            .Where(hiringProcess =>
+                candidateIds.Contains(
+                    hiringProcess.CandidateId) &&
+                ActiveStatuses.Contains(
+                    hiringProcess.Status))
+            .ToListAsync(cancellationToken);
     }
 }

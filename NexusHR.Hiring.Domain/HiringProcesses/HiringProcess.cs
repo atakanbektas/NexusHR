@@ -159,13 +159,6 @@ public sealed class HiringProcess
                 nameof(offerExpiresAtUtc));
         }
 
-        if (offerExpiresAtUtc <= DateTime.UtcNow)
-        {
-            throw new ArgumentException(
-                "Teklif son geçerlilik zamanı gelecekte olmalıdır.",
-                nameof(offerExpiresAtUtc));
-        }
-
         GrossSalary = grossSalary;
         Currency = normalizedCurrency;
         ProposedStartDate = proposedStartDate;

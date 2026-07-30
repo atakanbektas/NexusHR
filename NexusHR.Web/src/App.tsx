@@ -21,6 +21,8 @@ import CreateCandidateFromCvPage from
   "./features/candidates/CreateCandidateFromCvPage";
   import HiringProcessDetailPage from
   "./features/hiring/HiringProcessDetailPage";
+  import PublicOfferResponsePage from
+  "./features/publicOffers/PublicOfferResponsePage";
 
 function App() {
   const defaultPath =
@@ -110,6 +112,11 @@ function App() {
             />
           }
         />
+
+        <Route
+  path="/public/offers/respond"
+  element={<PublicOfferResponsePage />}
+/>
       </Routes>
     </BrowserRouter>
   );

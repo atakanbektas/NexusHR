@@ -3,11 +3,12 @@ import {
 } from "../../api/candidateApi";
 
 import type {
+  ActiveHiringProcessLookup,
+  CandidateHiringProcessStatus,
   CreateHiringProcessRequest,
   CreateHiringProcessResponse,
   HiringProcessDetail,
   PrepareOfferRequest,
-  ActiveHiringProcessLookup
 } from "./hiringTypes";
 
 export async function createHiringProcess(
@@ -60,4 +61,25 @@ export async function sendHiringOffer(
   await candidateApi.post(
     `/api/hiring-processes/${hiringProcessId}/offer/send`,
   );
+}
+
+export async function
+getActiveHiringProcessesByCandidateIds(
+  candidateIds: string[],
+): Promise<CandidateHiringProcessStatus[]> {
+  if (candidateIds.length === 0) {
+    return [];
+  }
+
+  const response =
+    await candidateApi.post<
+      CandidateHiringProcessStatus[]
+    >(
+      "/api/hiring-processes/active/by-candidates",
+      {
+        candidateIds,
+      },
+    );
+
+  return response.data;
 }

@@ -8,6 +8,10 @@ public interface IHiringProcessRepository
         Guid hiringProcessId,
         CancellationToken cancellationToken);
 
+    Task<HiringProcess?> GetByOfferResponseTokenHashAsync(
+    string offerResponseTokenHash,
+    CancellationToken cancellationToken);
+
     Task<HiringProcess?> GetActiveByCandidateIdAsync(
         Guid candidateId,
         CancellationToken cancellationToken);
@@ -22,5 +26,10 @@ public interface IHiringProcessRepository
 
     Task UpdateAsync(
         HiringProcess hiringProcess,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyCollection<HiringProcess>>
+    GetActiveByCandidateIdsAsync(
+        IReadOnlyCollection<Guid> candidateIds,
         CancellationToken cancellationToken);
 }
