@@ -149,7 +149,7 @@ internal sealed class CandidateOverviewService(
 
             using var request = new HttpRequestMessage(
                 HttpMethod.Get,
-                $"api/candidates?{string.Join('&', queryParameters)}");
+                $"api/candidates?{string.Join("&", queryParameters)}");
 
             AddAuthorizationHeader(
                 request,
