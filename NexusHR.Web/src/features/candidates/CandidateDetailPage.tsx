@@ -141,7 +141,6 @@ export default function CandidateDetailPage() {
 
   useEffect(() => {
     if (!id) {
-      setIsLoading(false);
       return;
     }
 

@@ -77,7 +77,6 @@ export default function HiringProcessDetailPage() {
 
   useEffect(() => {
     if (!id) {
-      setIsLoading(false);
       return;
     }
 
