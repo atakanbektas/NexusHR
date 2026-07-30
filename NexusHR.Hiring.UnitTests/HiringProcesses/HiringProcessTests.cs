@@ -92,7 +92,8 @@ public sealed class HiringProcessTests
         var hiringProcess = CreateHiringProcess();
 
         var exception = Assert.Throws<InvalidOperationException>(
-            hiringProcess.SendOffer);
+    () => hiringProcess.SendOffer(
+        new string('a', 64)));
 
         Assert.Equal(
             "Yalnızca hazırlanmış bir teklif gönderilebilir.",
@@ -104,7 +105,7 @@ public sealed class HiringProcessTests
     {
         var hiringProcess = CreatePreparedHiringProcess();
 
-        hiringProcess.SendOffer();
+        hiringProcess.SendOffer(new string('a', 64));
 
         Assert.Equal(
             HiringProcessStatus.OfferSent,
@@ -230,6 +231,49 @@ public sealed class HiringProcessTests
             hiringProcess.Status);
     }
 
+    [Fact]
+    public void PrepareOffer_ShouldThrow_WhenExpirationIsNotUtc()
+    {
+        var hiringProcess = CreateHiringProcess();
+
+        var unspecifiedExpiration = new DateTime(
+            2027,
+            1,
+            1,
+            12,
+            0,
+            0,
+            DateTimeKind.Unspecified);
+
+        var exception = Assert.Throws<ArgumentException>(
+            () => hiringProcess.PrepareOffer(
+                75_000m,
+                "TRY",
+                DateOnly.FromDateTime(DateTime.UtcNow.AddDays(30)),
+                unspecifiedExpiration));
+
+        Assert.Contains(
+            "Teklif son geçerlilik zamanı UTC olmalıdır.",
+            exception.Message);
+    }
+
+    [Fact]
+    public void PrepareOffer_ShouldThrow_WhenOfferWasAlreadySent()
+    {
+        var hiringProcess = CreateSentHiringProcess();
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => hiringProcess.PrepareOffer(
+                90_000m,
+                "TRY",
+                DateOnly.FromDateTime(DateTime.UtcNow.AddDays(45)),
+                DateTime.UtcNow.AddDays(10)));
+
+        Assert.Equal(
+            "Teklif yalnızca taslak veya teklif hazırlanmış durumunda düzenlenebilir.",
+            exception.Message);
+    }
+
     private static HiringProcess CreateHiringProcess()
     {
         return new HiringProcess(
@@ -257,7 +301,7 @@ public sealed class HiringProcessTests
     {
         var hiringProcess = CreatePreparedHiringProcess();
 
-        hiringProcess.SendOffer();
+        hiringProcess.SendOffer(new string('a', 64));
 
         return hiringProcess;
     }

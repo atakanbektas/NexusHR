@@ -2,10 +2,14 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using NexusHR.Hiring.Application.Abstractions.Messaging;
 using NexusHR.Hiring.Application.Abstractions.Persistence;
+using NexusHR.Hiring.Application.Abstractions.Security;
+using NexusHR.Hiring.Infrastructure.Messaging;
 using NexusHR.Hiring.Infrastructure.Messaging.Consumers;
 using NexusHR.Hiring.Infrastructure.Persistence;
 using NexusHR.Hiring.Infrastructure.Repositories;
+using NexusHR.Hiring.Infrastructure.Security;
 
 namespace NexusHR.Hiring.Infrastructure;
 
@@ -112,6 +116,14 @@ public static class DependencyInjection
             serviceProvider =>
                 serviceProvider.GetRequiredService<
                     HiringDbContext>());
+
+        services.AddSingleton<
+    IOfferResponseTokenService,
+    OfferResponseTokenService>();
+
+        services.AddScoped<
+    IIntegrationEventPublisher,
+    MassTransitIntegrationEventPublisher>();
 
         return services;
     }

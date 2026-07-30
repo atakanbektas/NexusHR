@@ -83,6 +83,18 @@ public sealed class HiringProcess
 
     public DateTime? OfferRespondedAtUtc { get; private set; }
 
+    public string? OfferResponseTokenHash
+    {
+        get;
+        private set;
+    }
+
+    public DateTime? OfferResponseTokenUsedAtUtc
+    {
+        get;
+        private set;
+    }
+
     public string? RejectionReason { get; private set; }
 
     public string? CancellationReason { get; private set; }
@@ -126,12 +138,25 @@ public sealed class HiringProcess
                 "Para birimi üç karakterli ISO kodu olmalıdır.",
                 nameof(currency));
         }
-
         if (proposedStartDate < DateOnly.FromDateTime(DateTime.UtcNow))
         {
             throw new ArgumentException(
                 "Önerilen işe başlangıç tarihi geçmişte olamaz.",
                 nameof(proposedStartDate));
+        }
+
+        if (offerExpiresAtUtc.Kind != DateTimeKind.Utc)
+        {
+            throw new ArgumentException(
+                "Teklif son geçerlilik zamanı UTC olmalıdır.",
+                nameof(offerExpiresAtUtc));
+        }
+
+        if (offerExpiresAtUtc <= DateTime.UtcNow)
+        {
+            throw new ArgumentException(
+                "Teklif son geçerlilik zamanı gelecekte olmalıdır.",
+                nameof(offerExpiresAtUtc));
         }
 
         if (offerExpiresAtUtc <= DateTime.UtcNow)
@@ -149,7 +174,8 @@ public sealed class HiringProcess
         UpdatedAtUtc = DateTime.UtcNow;
     }
 
-    public void SendOffer()
+    public void SendOffer(
+        string offerResponseTokenHash)
     {
         if (Status != HiringProcessStatus.OfferPrepared)
         {
@@ -157,7 +183,24 @@ public sealed class HiringProcess
                 "Yalnızca hazırlanmış bir teklif gönderilebilir.");
         }
 
+        if (string.IsNullOrWhiteSpace(
+                offerResponseTokenHash))
+        {
+            throw new ArgumentException(
+                "Teklif cevap token hash değeri boş olamaz.",
+                nameof(offerResponseTokenHash));
+        }
+
+        if (offerResponseTokenHash.Length != 64)
+        {
+            throw new ArgumentException(
+                "Teklif cevap token hash değeri geçersiz.",
+                nameof(offerResponseTokenHash));
+        }
+
         Status = HiringProcessStatus.OfferSent;
+        OfferResponseTokenHash =
+            offerResponseTokenHash;
         OfferSentAtUtc = DateTime.UtcNow;
         UpdatedAtUtc = DateTime.UtcNow;
     }
@@ -187,6 +230,7 @@ public sealed class HiringProcess
         Status = HiringProcessStatus.OfferAccepted;
         OfferRespondedAtUtc = respondedAtUtc;
         UpdatedAtUtc = respondedAtUtc;
+        OfferResponseTokenUsedAtUtc = respondedAtUtc;
     }
     public void RejectOffer(string reason)
     {
@@ -206,6 +250,7 @@ public sealed class HiringProcess
         Status = HiringProcessStatus.OfferRejected;
         RejectionReason = reason.Trim();
         OfferRespondedAtUtc = DateTime.UtcNow;
+        OfferResponseTokenUsedAtUtc = OfferRespondedAtUtc;
         UpdatedAtUtc = DateTime.UtcNow;
     }
 

@@ -44,6 +44,10 @@ internal sealed class HiringProcessConfiguration
         builder.Property(x => x.Currency)
             .HasMaxLength(3);
 
+        builder.Property(
+        x => x.OfferResponseTokenHash)
+    .HasMaxLength(64);
+
         builder.Property(x => x.CreatedAtUtc)
             .IsRequired();
 

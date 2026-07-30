@@ -2,6 +2,7 @@
 using NexusHR.Hiring.Application.Abstractions.Persistence;
 using NexusHR.Hiring.Domain.HiringProcesses;
 using NexusHR.Hiring.Infrastructure.Persistence;
+
 using HiringProcessEntity =
     NexusHR.Hiring.Domain.HiringProcesses.HiringProcess;
 
@@ -30,6 +31,21 @@ internal sealed class HiringProcessRepository(
                 cancellationToken);
     }
 
+    public async Task<HiringProcessEntity?>
+        GetActiveByCandidateIdAsync(
+            Guid candidateId,
+            CancellationToken cancellationToken)
+    {
+        return await dbContext.HiringProcesses
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                hiringProcess =>
+                    hiringProcess.CandidateId == candidateId &&
+                    ActiveStatuses.Contains(
+                        hiringProcess.Status),
+                cancellationToken);
+    }
+
     public async Task<bool> HasActiveProcessAsync(
         Guid candidateId,
         CancellationToken cancellationToken)
@@ -39,7 +55,8 @@ internal sealed class HiringProcessRepository(
             .AnyAsync(
                 hiringProcess =>
                     hiringProcess.CandidateId == candidateId &&
-                    ActiveStatuses.Contains(hiringProcess.Status),
+                    ActiveStatuses.Contains(
+                        hiringProcess.Status),
                 cancellationToken);
     }
 

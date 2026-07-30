@@ -184,6 +184,43 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: nexushr-mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  notification-api:
+    build:
+      context: .
+      dockerfile: NexusHR.Notification.Api/Dockerfile
+    image: nexushr-notification-api
+    container_name: nexushr-notification-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+
+      RabbitMq__Host: rabbitmq
+      RabbitMq__VirtualHost: /
+      RabbitMq__Username: nexushr
+      RabbitMq__Password: nexushr-dev-secret
+
+      Smtp__Host: mailhog
+      Smtp__Port: 1025
+      Smtp__SenderEmail: hr@nexushr.local
+      Smtp__SenderName: NexusHR İnsan Kaynakları
+      Smtp__UseSsl: "false"
+
+      OfferResponse__PublicWebUrl: http://localhost:5173
+    ports:
+      - "5231:8080"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+
   gateway:
     build:
       context: .

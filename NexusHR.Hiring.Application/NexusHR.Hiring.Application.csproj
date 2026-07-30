@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="..\NexusHR.Contracts\NexusHR.Contracts.csproj" />
     <ProjectReference Include="..\NexusHR.Hiring.Domain\NexusHR.Hiring.Domain.csproj" />
   </ItemGroup>
 

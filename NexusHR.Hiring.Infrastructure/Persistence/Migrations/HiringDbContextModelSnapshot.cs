@@ -266,6 +266,13 @@ namespace NexusHR.Hiring.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("OfferRespondedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("OfferResponseTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("OfferResponseTokenUsedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime?>("OfferSentAtUtc")
                         .HasColumnType("timestamp with time zone");
 

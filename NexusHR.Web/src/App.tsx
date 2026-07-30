@@ -19,6 +19,8 @@ import CandidateListPage from
   "./features/candidates/CandidateListPage";
 import CreateCandidateFromCvPage from
   "./features/candidates/CreateCandidateFromCvPage";
+  import HiringProcessDetailPage from
+  "./features/hiring/HiringProcessDetailPage";
 
 function App() {
   const defaultPath =
@@ -84,6 +86,20 @@ function App() {
             </RoleGuard>
           }
         />
+
+        <Route
+  path="/hiring-processes/:id"
+  element={
+    <RoleGuard
+      allowedRoles={
+        CandidateReaderRoles
+      }
+    >
+      <HiringProcessDetailPage />
+    </RoleGuard>
+  }
+/>
+
 
         <Route
           path="*"

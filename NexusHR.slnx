@@ -26,6 +26,11 @@
     <Project Path="NexusHR.Hiring.Domain/NexusHR.Hiring.Domain.csproj" />
     <Project Path="NexusHR.Hiring.Infrastructure/NexusHR.Hiring.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/src/Services/Notification/">
+    <Project Path="NexusHR.Notification.Api/NexusHR.Notification.Api.csproj" />
+    <Project Path="NexusHR.Notification.Application/NexusHR.Notification.Application.csproj" />
+    <Project Path="NexusHR.Notification.Infrastructure/NexusHR.Notification.Infrastructure.csproj" />
+  </Folder>
   <Folder Name="/tests/" />
   <Folder Name="/tests/Candidate/">
     <Project Path="NexusHR.Candidate.IntegrationTests/NexusHR.Candidate.IntegrationTests.csproj" />

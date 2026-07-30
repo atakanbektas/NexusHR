@@ -8,6 +8,10 @@ public interface IHiringProcessRepository
         Guid hiringProcessId,
         CancellationToken cancellationToken);
 
+    Task<HiringProcess?> GetActiveByCandidateIdAsync(
+        Guid candidateId,
+        CancellationToken cancellationToken);
+
     Task<bool> HasActiveProcessAsync(
         Guid candidateId,
         CancellationToken cancellationToken);

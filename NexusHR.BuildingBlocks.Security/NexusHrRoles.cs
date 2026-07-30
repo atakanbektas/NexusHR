@@ -28,4 +28,10 @@ public static class NexusHrRoles
 
     public const string CandidateEditors =
         "HrSpecialist";
+
+    public const string HiringReaders =
+    "HrSpecialist,HrManager,DepartmentManager,Auditor";
+
+    public const string HiringEditors =
+        "HrSpecialist";
 }

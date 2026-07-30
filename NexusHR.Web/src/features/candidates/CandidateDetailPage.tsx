@@ -38,6 +38,9 @@ import {
   hasAnyRole,
   NexusHrRoles,
 } from "../../auth/roles";
+import CreateHiringProcessDialog from
+  "../hiring/CreateHiringProcessDialog";
+  
 
 
 
@@ -417,16 +420,26 @@ const canVerifyDocuments =
                 )}
               </Stack>
 
-              {candidate.status ===
-                "ReadyForHiring" && (
-                <Alert
-                  severity="success"
-                  sx={{ mt: 3 }}
-                >
-                  Bu adayın belgeleri doğrulandı ve
-                  aday işe alım sürecine hazır.
-                </Alert>
-              )}
+{candidate.status ===
+  "ReadyForHiring" && (
+  <Stack
+    spacing={2}
+    sx={{ mt: 3 }}
+  >
+    <Alert severity="success">
+      Bu adayın belgeleri doğrulandı ve
+      aday işe alım sürecine hazır.
+    </Alert>
+
+    {canVerifyDocuments && (
+      <Box>
+        <CreateHiringProcessDialog
+          candidateId={candidate.id}
+        />
+      </Box>
+    )}
+  </Stack>
+)}
             </CardContent>
           </Card>
         )}
