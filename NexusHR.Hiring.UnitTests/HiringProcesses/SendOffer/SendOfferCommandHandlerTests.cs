@@ -120,7 +120,7 @@ public sealed class SendOfferCommandHandlerTests
                 Arg.Is<
                     HiringOfferSentIntegrationEvent>(
                     integrationEvent =>
-                        integrationEvent is not null &&
+                        integrationEvent != null &&
                         integrationEvent
                             .HiringProcessId ==
                         hiringProcess.Id &&
