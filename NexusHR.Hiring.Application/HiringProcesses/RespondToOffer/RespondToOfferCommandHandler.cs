@@ -1,4 +1,4 @@
-﻿using FluentValidation;
+using FluentValidation;
 using MediatR;
 using NexusHR.Hiring.Application
     .Abstractions.Persistence;
@@ -54,12 +54,10 @@ internal sealed class RespondToOfferCommandHandler(
                 "Teklif bağlantısı geçersiz veya daha önce kullanılmış.");
         }
 
-        var respondedAtUtc =
-            DateTime.UtcNow;
+        var respondedAtUtc = DateTime.UtcNow;
 
         if (hiringProcess.OfferExpiresAtUtc is null ||
-            hiringProcess.OfferExpiresAtUtc <=
-            respondedAtUtc)
+            hiringProcess.OfferExpiresAtUtc <= respondedAtUtc)
         {
             return RespondToOfferResponse.Failure(
                 "OfferResponse.Expired",
@@ -77,14 +75,14 @@ internal sealed class RespondToOfferCommandHandler(
 
                 case OfferDecision.Reject:
                     hiringProcess.RejectOffer(
-                        request.RejectionReason!);
+                        request.RejectionReason!,
+                        respondedAtUtc);
                     break;
 
                 default:
-                    return RespondToOfferResponse
-                        .Failure(
-                            "OfferResponse.InvalidDecision",
-                            "Geçerli bir teklif kararı seçilmelidir.");
+                    return RespondToOfferResponse.Failure(
+                        "OfferResponse.InvalidDecision",
+                        "Geçerli bir teklif kararı seçilmelidir.");
             }
         }
         catch (InvalidOperationException exception)
