@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using NexusHR.Hiring.Application.Abstractions.Persistence;
 
 namespace NexusHR.Hiring.Application.HiringProcesses
@@ -33,7 +33,7 @@ internal sealed class GetActiveHiringProcessesByCandidateIdsQueryHandler(
 
         var hiringProcesses =
             await hiringProcessRepository
-                .GetActiveByCandidateIdsAsync(
+                .GetLatestByCandidateIdsAsync(
                     candidateIds,
                     cancellationToken);
 
