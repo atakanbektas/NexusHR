@@ -1,4 +1,4 @@
-﻿namespace NexusHR.Hiring.Application.HiringProcesses
+namespace NexusHR.Hiring.Application.HiringProcesses
     .GetActiveHiringProcessByCandidateId;
 
 public sealed record ActiveHiringProcessLookupResponse(
@@ -12,6 +12,15 @@ public sealed record ActiveHiringProcessLookupResponse(
             Exists: false,
             HiringProcessId: null,
             Status: null);
+    }
+
+    public static ActiveHiringProcessLookupResponse Inactive(
+        string status)
+    {
+        return new ActiveHiringProcessLookupResponse(
+            Exists: false,
+            HiringProcessId: null,
+            Status: status);
     }
 
     public static ActiveHiringProcessLookupResponse Found(
