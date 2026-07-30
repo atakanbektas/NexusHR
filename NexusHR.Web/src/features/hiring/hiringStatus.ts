@@ -2,6 +2,17 @@ import type {
   HiringProcessStatus,
 } from "./hiringTypes";
 
+export const hiringStatuses:
+HiringProcessStatus[] = [
+  "Draft",
+  "OfferPrepared",
+  "OfferSent",
+  "OfferAccepted",
+  "OfferRejected",
+  "Cancelled",
+  "Completed",
+];
+
 export const hiringStatusLabels:
 Record<HiringProcessStatus, string> = {
   Draft: "İşe alım taslağı",
