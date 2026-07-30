@@ -205,7 +205,8 @@ public sealed class HiringProcess
     {
         ValidateOfferResponse(
             respondedAtUtc,
-            "kabul edilebilir");
+            "kabul edilebilir",
+            "Süresi dolmuş bir teklif kabul edilemez.");
 
         Status = HiringProcessStatus.OfferAccepted;
         OfferRespondedAtUtc = respondedAtUtc;
@@ -224,7 +225,8 @@ public sealed class HiringProcess
     {
         ValidateOfferResponse(
             respondedAtUtc,
-            "reddedilebilir");
+            "reddedilebilir",
+            "Süresi dolmuş bir teklif reddedilemez.");
 
         if (string.IsNullOrWhiteSpace(reason))
         {
@@ -284,7 +286,8 @@ public sealed class HiringProcess
 
     private void ValidateOfferResponse(
         DateTime respondedAtUtc,
-        string action)
+        string action,
+        string expirationErrorMessage)
     {
         if (Status != HiringProcessStatus.OfferSent)
         {
@@ -303,7 +306,7 @@ public sealed class HiringProcess
             OfferExpiresAtUtc <= respondedAtUtc)
         {
             throw new InvalidOperationException(
-                "Süresi dolmuş bir teklife cevap verilemez.");
+                expirationErrorMessage);
         }
     }
 }
