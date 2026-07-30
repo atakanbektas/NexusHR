@@ -1,4 +1,5 @@
 using NexusHR.BuildingBlocks.Security;
+using NexusHR.Gateway.CandidateOverview;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -35,6 +36,28 @@ builder.Services.AddAuthorization(options =>
         });
 });
 
+builder.Services.AddHttpClient(
+    CandidateOverviewHttpClients.CandidateApi,
+    client =>
+    {
+        client.BaseAddress = GetClusterAddress(
+            builder.Configuration,
+            "candidate-cluster",
+            "candidate-api");
+    });
+
+builder.Services.AddHttpClient(
+    CandidateOverviewHttpClients.HiringApi,
+    client =>
+    {
+        client.BaseAddress = GetClusterAddress(
+            builder.Configuration,
+            "hiring-cluster",
+            "hiring-api");
+    });
+
+builder.Services.AddScoped<CandidateOverviewService>();
+
 builder.Services
     .AddReverseProxy()
     .LoadFromConfig(
@@ -56,6 +79,30 @@ app.MapGet(
         service = "NexusHR.Gateway"
     }));
 
+app.MapCandidateOverviewEndpoints(
+    AuthenticatedUserPolicy);
+
 app.MapReverseProxy();
 
 app.Run();
+
+static Uri GetClusterAddress(
+    IConfiguration configuration,
+    string clusterId,
+    string destinationId)
+{
+    var address = configuration[
+        $"ReverseProxy:Clusters:{clusterId}:Destinations:{destinationId}:Address"];
+
+    if (string.IsNullOrWhiteSpace(address) ||
+        !Uri.TryCreate(
+            address,
+            UriKind.Absolute,
+            out var uri))
+    {
+        throw new InvalidOperationException(
+            $"{clusterId}/{destinationId} adresi yapılandırılmamış.");
+    }
+
+    return uri;
+}
