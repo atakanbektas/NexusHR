@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using NexusHR.Hiring.Application.Abstractions.Persistence;
 using NexusHR.Hiring.Domain.HiringProcesses;
 using NexusHR.Hiring.Infrastructure.Persistence;
@@ -32,9 +32,9 @@ internal sealed class HiringProcessRepository(
     }
 
     public async Task<HiringProcessEntity?>
-    GetByOfferResponseTokenHashAsync(
-        string offerResponseTokenHash,
-        CancellationToken cancellationToken)
+        GetByOfferResponseTokenHashAsync(
+            string offerResponseTokenHash,
+            CancellationToken cancellationToken)
     {
         return await dbContext.HiringProcesses
             .SingleOrDefaultAsync(
@@ -59,6 +59,43 @@ internal sealed class HiringProcessRepository(
                     ActiveStatuses.Contains(
                         hiringProcess.Status),
                 cancellationToken);
+    }
+
+    public async Task<HiringProcessEntity?>
+        GetLatestByCandidateIdAsync(
+            Guid candidateId,
+            CancellationToken cancellationToken)
+    {
+        return await dbContext.HiringProcesses
+            .AsNoTracking()
+            .Where(hiringProcess =>
+                hiringProcess.CandidateId == candidateId)
+            .OrderByDescending(hiringProcess =>
+                hiringProcess.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<
+        IReadOnlyCollection<HiringProcessEntity>>
+        GetLatestByCandidateIdsAsync(
+            IReadOnlyCollection<Guid> candidateIds,
+            CancellationToken cancellationToken)
+    {
+        var hiringProcesses =
+            await dbContext.HiringProcesses
+                .AsNoTracking()
+                .Where(hiringProcess =>
+                    candidateIds.Contains(
+                        hiringProcess.CandidateId))
+                .OrderByDescending(hiringProcess =>
+                    hiringProcess.CreatedAtUtc)
+                .ToListAsync(cancellationToken);
+
+        return hiringProcesses
+            .GroupBy(hiringProcess =>
+                hiringProcess.CandidateId)
+            .Select(group => group.First())
+            .ToArray();
     }
 
     public async Task<bool> HasActiveProcessAsync(
@@ -92,21 +129,5 @@ internal sealed class HiringProcessRepository(
             hiringProcess);
 
         return Task.CompletedTask;
-    }
-
-    public async Task<
-    IReadOnlyCollection<HiringProcessEntity>>
-    GetActiveByCandidateIdsAsync(
-        IReadOnlyCollection<Guid> candidateIds,
-        CancellationToken cancellationToken)
-    {
-        return await dbContext.HiringProcesses
-            .AsNoTracking()
-            .Where(hiringProcess =>
-                candidateIds.Contains(
-                    hiringProcess.CandidateId) &&
-                ActiveStatuses.Contains(
-                    hiringProcess.Status))
-            .ToListAsync(cancellationToken);
     }
 }
