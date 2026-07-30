@@ -1,4 +1,4 @@
-﻿using NSubstitute;
+using NSubstitute;
 using NexusHR.Contracts.Hiring;
 using NexusHR.Hiring.Application.Abstractions.Messaging;
 using NexusHR.Hiring.Application.Abstractions.Persistence;
@@ -114,13 +114,13 @@ public sealed class SendOfferCommandHandlerTests
         Assert.NotNull(
             hiringProcess.OfferSentAtUtc);
 
-
         await _integrationEventPublisher
             .Received(1)
             .PublishAsync(
                 Arg.Is<
                     HiringOfferSentIntegrationEvent>(
                     integrationEvent =>
+                        integrationEvent is not null &&
                         integrationEvent
                             .HiringProcessId ==
                         hiringProcess.Id &&
