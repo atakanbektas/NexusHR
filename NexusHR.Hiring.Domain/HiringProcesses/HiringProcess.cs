@@ -1,4 +1,4 @@
-﻿namespace NexusHR.Hiring.Domain.HiringProcesses;
+namespace NexusHR.Hiring.Domain.HiringProcesses;
 
 public sealed class HiringProcess
 {
@@ -130,7 +130,8 @@ public sealed class HiringProcess
                 nameof(currency));
         }
 
-        var normalizedCurrency = currency.Trim().ToUpperInvariant();
+        var normalizedCurrency =
+            currency.Trim().ToUpperInvariant();
 
         if (normalizedCurrency.Length != 3)
         {
@@ -138,7 +139,9 @@ public sealed class HiringProcess
                 "Para birimi üç karakterli ISO kodu olmalıdır.",
                 nameof(currency));
         }
-        if (proposedStartDate < DateOnly.FromDateTime(DateTime.UtcNow))
+
+        if (proposedStartDate <
+            DateOnly.FromDateTime(DateTime.UtcNow))
         {
             throw new ArgumentException(
                 "Önerilen işe başlangıç tarihi geçmişte olamaz.",
@@ -200,38 +203,28 @@ public sealed class HiringProcess
 
     public void AcceptOffer(DateTime respondedAtUtc)
     {
-        if (Status != HiringProcessStatus.OfferSent)
-        {
-            throw new InvalidOperationException(
-                "Yalnızca gönderilmiş bir teklif kabul edilebilir.");
-        }
-
-        if (respondedAtUtc.Kind != DateTimeKind.Utc)
-        {
-            throw new ArgumentException(
-                "Teklif cevap zamanı UTC olmalıdır.",
-                nameof(respondedAtUtc));
-        }
-
-        if (OfferExpiresAtUtc is null ||
-            OfferExpiresAtUtc <= respondedAtUtc)
-        {
-            throw new InvalidOperationException(
-                "Süresi dolmuş bir teklif kabul edilemez.");
-        }
+        ValidateOfferResponse(
+            respondedAtUtc,
+            "kabul edilebilir");
 
         Status = HiringProcessStatus.OfferAccepted;
         OfferRespondedAtUtc = respondedAtUtc;
-        UpdatedAtUtc = respondedAtUtc;
         OfferResponseTokenUsedAtUtc = respondedAtUtc;
+        UpdatedAtUtc = respondedAtUtc;
     }
+
     public void RejectOffer(string reason)
     {
-        if (Status != HiringProcessStatus.OfferSent)
-        {
-            throw new InvalidOperationException(
-                "Yalnızca gönderilmiş bir teklif reddedilebilir.");
-        }
+        RejectOffer(reason, DateTime.UtcNow);
+    }
+
+    public void RejectOffer(
+        string reason,
+        DateTime respondedAtUtc)
+    {
+        ValidateOfferResponse(
+            respondedAtUtc,
+            "reddedilebilir");
 
         if (string.IsNullOrWhiteSpace(reason))
         {
@@ -242,9 +235,9 @@ public sealed class HiringProcess
 
         Status = HiringProcessStatus.OfferRejected;
         RejectionReason = reason.Trim();
-        OfferRespondedAtUtc = DateTime.UtcNow;
-        OfferResponseTokenUsedAtUtc = OfferRespondedAtUtc;
-        UpdatedAtUtc = DateTime.UtcNow;
+        OfferRespondedAtUtc = respondedAtUtc;
+        OfferResponseTokenUsedAtUtc = respondedAtUtc;
+        UpdatedAtUtc = respondedAtUtc;
     }
 
     public void Cancel(string reason)
@@ -287,5 +280,30 @@ public sealed class HiringProcess
         EmployeeId = employeeId;
         Status = HiringProcessStatus.Completed;
         UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    private void ValidateOfferResponse(
+        DateTime respondedAtUtc,
+        string action)
+    {
+        if (Status != HiringProcessStatus.OfferSent)
+        {
+            throw new InvalidOperationException(
+                $"Yalnızca gönderilmiş bir teklif {action}.");
+        }
+
+        if (respondedAtUtc.Kind != DateTimeKind.Utc)
+        {
+            throw new ArgumentException(
+                "Teklif cevap zamanı UTC olmalıdır.",
+                nameof(respondedAtUtc));
+        }
+
+        if (OfferExpiresAtUtc is null ||
+            OfferExpiresAtUtc <= respondedAtUtc)
+        {
+            throw new InvalidOperationException(
+                "Süresi dolmuş bir teklife cevap verilemez.");
+        }
     }
 }
