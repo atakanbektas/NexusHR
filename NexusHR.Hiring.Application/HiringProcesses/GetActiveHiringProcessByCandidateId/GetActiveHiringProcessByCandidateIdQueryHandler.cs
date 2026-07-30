@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using NexusHR.Hiring.Application.Abstractions.Persistence;
 
 namespace NexusHR.Hiring.Application.HiringProcesses
@@ -15,19 +15,31 @@ internal sealed class
         GetActiveHiringProcessByCandidateIdQuery request,
         CancellationToken cancellationToken)
     {
-        var hiringProcess =
+        var activeHiringProcess =
             await hiringProcessRepository
                 .GetActiveByCandidateIdAsync(
                     request.CandidateId,
                     cancellationToken);
 
-        if (hiringProcess is null)
+        if (activeHiringProcess is not null)
+        {
+            return ActiveHiringProcessLookupResponse.Found(
+                activeHiringProcess.Id,
+                activeHiringProcess.Status.ToString());
+        }
+
+        var latestHiringProcess =
+            await hiringProcessRepository
+                .GetLatestByCandidateIdAsync(
+                    request.CandidateId,
+                    cancellationToken);
+
+        if (latestHiringProcess is null)
         {
             return ActiveHiringProcessLookupResponse.NotFound();
         }
 
-        return ActiveHiringProcessLookupResponse.Found(
-            hiringProcess.Id,
-            hiringProcess.Status.ToString());
+        return ActiveHiringProcessLookupResponse.Inactive(
+            latestHiringProcess.Status.ToString());
     }
 }
