@@ -1,6 +1,6 @@
 import {
-  candidateApi,
-} from "../../api/candidateApi";
+  publicApi,
+} from "../../api/publicApi";
 
 export type PublicOfferDecision =
   | "Accept"
@@ -15,7 +15,7 @@ export interface RespondToOfferRequest {
 export async function respondToOffer(
   request: RespondToOfferRequest,
 ): Promise<void> {
-  await candidateApi.post(
+  await publicApi.post(
     "/api/public/offers/respond",
     request,
   );
