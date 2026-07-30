@@ -1,4 +1,4 @@
-﻿using NexusHR.Hiring.Domain.HiringProcesses;
+using NexusHR.Hiring.Domain.HiringProcesses;
 
 namespace NexusHR.Hiring.Application.Abstractions.Persistence;
 
@@ -9,12 +9,21 @@ public interface IHiringProcessRepository
         CancellationToken cancellationToken);
 
     Task<HiringProcess?> GetByOfferResponseTokenHashAsync(
-    string offerResponseTokenHash,
-    CancellationToken cancellationToken);
+        string offerResponseTokenHash,
+        CancellationToken cancellationToken);
 
     Task<HiringProcess?> GetActiveByCandidateIdAsync(
         Guid candidateId,
         CancellationToken cancellationToken);
+
+    Task<HiringProcess?> GetLatestByCandidateIdAsync(
+        Guid candidateId,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyCollection<HiringProcess>>
+        GetLatestByCandidateIdsAsync(
+            IReadOnlyCollection<Guid> candidateIds,
+            CancellationToken cancellationToken);
 
     Task<bool> HasActiveProcessAsync(
         Guid candidateId,
@@ -26,10 +35,5 @@ public interface IHiringProcessRepository
 
     Task UpdateAsync(
         HiringProcess hiringProcess,
-        CancellationToken cancellationToken);
-
-    Task<IReadOnlyCollection<HiringProcess>>
-    GetActiveByCandidateIdsAsync(
-        IReadOnlyCollection<Guid> candidateIds,
         CancellationToken cancellationToken);
 }
