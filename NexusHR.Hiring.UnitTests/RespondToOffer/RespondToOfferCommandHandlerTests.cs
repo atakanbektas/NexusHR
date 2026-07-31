@@ -1,10 +1,10 @@
-﻿using NSubstitute;
-using NexusHR.Hiring.Application
-    .Abstractions.Persistence;
-using NexusHR.Hiring.Application
-    .Abstractions.Security;
-using NexusHR.Hiring.Application
-    .HiringProcesses.RespondToOffer;
+using NSubstitute;
+using NexusHR.Contracts.Hiring;
+using NexusHR.Hiring.Application.Abstractions.Messaging;
+using NexusHR.Hiring.Application.Abstractions.Persistence;
+using NexusHR.Hiring.Application.Abstractions.Security;
+using NexusHR.Hiring.Application.HiringProcesses.RespondToOffer;
+using NexusHR.Hiring.Domain.EligibleCandidates;
 using NexusHR.Hiring.Domain.HiringProcesses;
 
 namespace NexusHR.Hiring.UnitTests
@@ -21,11 +21,17 @@ public sealed class RespondToOfferCommandHandlerTests
     private readonly IHiringProcessRepository
         _hiringProcessRepository;
 
+    private readonly IEligibleCandidateRepository
+        _eligibleCandidateRepository;
+
     private readonly IUnitOfWork
         _unitOfWork;
 
     private readonly IOfferResponseTokenService
         _tokenService;
+
+    private readonly IIntegrationEventPublisher
+        _integrationEventPublisher;
 
     private readonly RespondToOfferCommandValidator
         _validator;
@@ -33,15 +39,19 @@ public sealed class RespondToOfferCommandHandlerTests
     public RespondToOfferCommandHandlerTests()
     {
         _hiringProcessRepository =
-            Substitute.For<
-                IHiringProcessRepository>();
+            Substitute.For<IHiringProcessRepository>();
+
+        _eligibleCandidateRepository =
+            Substitute.For<IEligibleCandidateRepository>();
 
         _unitOfWork =
             Substitute.For<IUnitOfWork>();
 
         _tokenService =
-            Substitute.For<
-                IOfferResponseTokenService>();
+            Substitute.For<IOfferResponseTokenService>();
+
+        _integrationEventPublisher =
+            Substitute.For<IIntegrationEventPublisher>();
 
         _validator =
             new RespondToOfferCommandValidator();
@@ -52,16 +62,26 @@ public sealed class RespondToOfferCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ShouldAcceptOffer_WhenTokenIsValid()
+    public async Task Handle_ShouldAcceptOfferAndPublishEvent_WhenTokenIsValid()
     {
         var hiringProcess =
             CreateSentHiringProcess();
+
+        var eligibleCandidate =
+            CreateEligibleCandidate(
+                hiringProcess.CandidateId);
 
         _hiringProcessRepository
             .GetByOfferResponseTokenHashAsync(
                 TokenHash,
                 Arg.Any<CancellationToken>())
             .Returns(hiringProcess);
+
+        _eligibleCandidateRepository
+            .GetByCandidateIdAsync(
+                hiringProcess.CandidateId,
+                Arg.Any<CancellationToken>())
+            .Returns(eligibleCandidate);
 
         _unitOfWork
             .SaveChangesAsync(
@@ -85,9 +105,19 @@ public sealed class RespondToOfferCommandHandlerTests
         Assert.NotNull(
             hiringProcess.OfferRespondedAtUtc);
 
-        Assert.NotNull(
-            hiringProcess
-                .OfferResponseTokenUsedAtUtc);
+        await _integrationEventPublisher
+            .Received(1)
+            .PublishAsync(
+                Arg.Is<HiringOfferAcceptedIntegrationEvent>(
+                    integrationEvent =>
+                        integrationEvent != null &&
+                        integrationEvent.HiringProcessId ==
+                            hiringProcess.Id &&
+                        integrationEvent.CandidateId ==
+                            hiringProcess.CandidateId &&
+                        integrationEvent.CandidateEmail ==
+                            eligibleCandidate.Email),
+                Arg.Any<CancellationToken>());
 
         await _hiringProcessRepository
             .Received(1)
@@ -139,9 +169,11 @@ public sealed class RespondToOfferCommandHandlerTests
             rejectionReason,
             hiringProcess.RejectionReason);
 
-        Assert.NotNull(
-            hiringProcess
-                .OfferResponseTokenUsedAtUtc);
+        await _integrationEventPublisher
+            .DidNotReceive()
+            .PublishAsync(
+                Arg.Any<HiringOfferAcceptedIntegrationEvent>(),
+                Arg.Any<CancellationToken>());
 
         await _hiringProcessRepository
             .Received(1)
@@ -162,8 +194,7 @@ public sealed class RespondToOfferCommandHandlerTests
             .GetByOfferResponseTokenHashAsync(
                 TokenHash,
                 Arg.Any<CancellationToken>())
-            .Returns(
-                (HiringProcess?)null);
+            .Returns((HiringProcess?)null);
 
         var response =
             await CreateHandler().Handle(
@@ -210,8 +241,7 @@ public sealed class RespondToOfferCommandHandlerTests
 
         _tokenService
             .DidNotReceive()
-            .Hash(
-                Arg.Any<string>());
+            .Hash(Arg.Any<string>());
 
         await _hiringProcessRepository
             .DidNotReceive()
@@ -220,18 +250,29 @@ public sealed class RespondToOfferCommandHandlerTests
                 Arg.Any<CancellationToken>());
     }
 
-    private RespondToOfferCommandHandler
-        CreateHandler()
+    private RespondToOfferCommandHandler CreateHandler()
     {
         return new RespondToOfferCommandHandler(
             _hiringProcessRepository,
+            _eligibleCandidateRepository,
             _unitOfWork,
             _tokenService,
+            _integrationEventPublisher,
             _validator);
     }
 
-    private static HiringProcess
-        CreateSentHiringProcess()
+    private static EligibleCandidate CreateEligibleCandidate(
+        Guid candidateId)
+    {
+        return new EligibleCandidate(
+            candidateId,
+            "Atakan",
+            "Bektaş",
+            "atakan@nexushr.local",
+            DateTime.UtcNow.AddDays(-1));
+    }
+
+    private static HiringProcess CreateSentHiringProcess()
     {
         var hiringProcess =
             new HiringProcess(
@@ -248,8 +289,7 @@ public sealed class RespondToOfferCommandHandlerTests
                 DateTime.UtcNow.AddDays(30)),
             DateTime.UtcNow.AddDays(7));
 
-        hiringProcess.SendOffer(
-            TokenHash);
+        hiringProcess.SendOffer(TokenHash);
 
         return hiringProcess;
     }
