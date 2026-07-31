@@ -31,6 +31,12 @@
     <Project Path="NexusHR.Notification.Application/NexusHR.Notification.Application.csproj" />
     <Project Path="NexusHR.Notification.Infrastructure/NexusHR.Notification.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/src/Services/Onboarding/">
+    <Project Path="NexusHR.Onboarding.Api/NexusHR.Onboarding.Api.csproj" />
+    <Project Path="NexusHR.Onboarding.Application/NexusHR.Onboarding.Application.csproj" />
+    <Project Path="NexusHR.Onboarding.Domain/NexusHR.Onboarding.Domain.csproj" />
+    <Project Path="NexusHR.Onboarding.Infrastructure/NexusHR.Onboarding.Infrastructure.csproj" />
+  </Folder>
   <Folder Name="/tests/" />
   <Folder Name="/tests/Candidate/">
     <Project Path="NexusHR.Candidate.IntegrationTests/NexusHR.Candidate.IntegrationTests.csproj" />
