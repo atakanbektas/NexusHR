@@ -25,10 +25,6 @@ services:
       POSTGRES_DB: nexushr_hiring
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      RabbitMq__Host: rabbitmq
-      RabbitMq__VirtualHost: /
-      RabbitMq__Username: nexushr
-      RabbitMq__Password: nexushr-dev-secret
     ports:
       - "5435:5432"
     volumes:
@@ -37,6 +33,25 @@ services:
       test:
         - CMD-SHELL
         - pg_isready -U postgres -d nexushr_hiring
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  onboarding-db:
+    image: postgres:16-alpine
+    container_name: nexushr-onboarding-db
+    environment:
+      POSTGRES_DB: nexushr_onboarding
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5436:5432"
+    volumes:
+      - onboarding-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U postgres -d nexushr_onboarding
       interval: 5s
       timeout: 5s
       retries: 5
@@ -184,6 +199,37 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  onboarding-api:
+    build:
+      context: .
+      dockerfile: NexusHR.Onboarding.Api/Dockerfile
+    image: nexushr-onboarding-api
+    container_name: nexushr-onboarding-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+
+      ConnectionStrings__OnboardingDatabase: Host=onboarding-db;Port=5432;Database=nexushr_onboarding;Username=postgres;Password=postgres
+
+      RabbitMq__Host: rabbitmq
+      RabbitMq__VirtualHost: /
+      RabbitMq__Username: nexushr
+      RabbitMq__Password: nexushr-dev-secret
+
+      Keycloak__Authority: http://localhost:8080/realms/nexushr
+      Keycloak__MetadataAddress: http://keycloak:8080/realms/nexushr/.well-known/openid-configuration
+      Keycloak__ClientId: nexushr-web
+      Keycloak__RequireHttpsMetadata: "false"
+    ports:
+      - "5241:8080"
+    depends_on:
+      onboarding-db:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+
   mailhog:
     image: mailhog/mailhog:v1.0.1
     container_name: nexushr-mailhog
@@ -230,9 +276,10 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
-      ReverseProxy__Clusters__hiring-cluster__Destinations__hiring-api__Address: http://hiring-api:8080/
 
+      ReverseProxy__Clusters__hiring-cluster__Destinations__hiring-api__Address: http://hiring-api:8080/
       ReverseProxy__Clusters__candidate-cluster__Destinations__candidate-api__Address: http://candidate-api:8080/
+      ReverseProxy__Clusters__onboarding-cluster__Destinations__onboarding-api__Address: http://onboarding-api:8080/
 
       Keycloak__Authority: http://localhost:8080/realms/nexushr
       Keycloak__MetadataAddress: http://keycloak:8080/realms/nexushr/.well-known/openid-configuration
@@ -244,6 +291,8 @@ services:
       candidate-api:
         condition: service_started
       hiring-api:
+        condition: service_started
+      onboarding-api:
         condition: service_started
       keycloak:
         condition: service_started
@@ -270,6 +319,7 @@ services:
 volumes:
   candidate-db-data:
   hiring-db-data:
+  onboarding-db-data:
   identity-db-data:
   candidate-storage-data:
   rabbitmq-data:
