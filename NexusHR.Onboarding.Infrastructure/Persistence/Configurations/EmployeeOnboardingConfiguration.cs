@@ -45,14 +45,14 @@ internal sealed class EmployeeOnboardingConfiguration
 
         builder.HasIndex(onboarding => onboarding.CandidateId);
 
-        var tasksNavigation = builder
+        builder
             .HasMany(onboarding => onboarding.Tasks)
             .WithOne()
             .HasForeignKey(task => task.EmployeeOnboardingId)
-            .OnDelete(DeleteBehavior.Cascade)
-            .Metadata;
+            .OnDelete(DeleteBehavior.Cascade);
 
-        tasksNavigation.SetPropertyAccessMode(
-            PropertyAccessMode.Field);
+        builder
+            .Navigation(onboarding => onboarding.Tasks)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }
