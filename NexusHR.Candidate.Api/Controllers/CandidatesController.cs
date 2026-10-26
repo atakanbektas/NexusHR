@@ -213,6 +213,8 @@ public sealed class CandidatesController(
         return Ok(response.Draft);
     }
 
+    [Authorize(
+        Roles = NexusHrRoles.CandidateEditors)]
     [HttpPost("{id:guid}/documents/cv")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(6 * 1024 * 1024)]
