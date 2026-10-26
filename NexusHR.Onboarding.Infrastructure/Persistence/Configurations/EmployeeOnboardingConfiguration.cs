@@ -15,6 +15,8 @@ internal sealed class EmployeeOnboardingConfiguration
 
         builder.HasKey(onboarding => onboarding.Id);
 
+        builder.Property<uint>("xmin").IsRowVersion();
+
         builder.Property(onboarding => onboarding.FirstName)
             .HasMaxLength(100)
             .IsRequired();

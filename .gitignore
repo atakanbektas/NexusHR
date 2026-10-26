@@ -602,3 +602,6 @@ $RECYCLE.BIN/
 *.swp
 =======
 >>>>>>> a1916cb029ababb1894078ce901e20d60ebb21b4
+
+# Workspace-local build tools
+.tools/

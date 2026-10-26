@@ -28,7 +28,6 @@ internal sealed class EmployeeOnboardingRepository(
         CancellationToken cancellationToken)
     {
         return await dbContext.EmployeeOnboardings
-            .AsNoTracking()
             .Include(onboarding => onboarding.Tasks)
             .SingleOrDefaultAsync(
                 onboarding => onboarding.Id == onboardingId,

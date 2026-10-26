@@ -28,7 +28,11 @@ export const CandidateCvReaderRoles = [
 export function hasAnyRole(
   roles: readonly string[],
 ): boolean {
-  return roles.some(role =>
-    keycloak.hasRealmRole(role),
-  );
+  return roles.some(role => keycloak.hasRealmRole(role));
 }
+
+export const OnboardingReaderRoles = [
+  ...CandidateReaderRoles,
+  NexusHrRoles.ItSpecialist,
+] as const;
+

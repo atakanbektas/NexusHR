@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/building-blocks/">
+    <Project Path="NexusHR.BuildingBlocks.Hosting/NexusHR.BuildingBlocks.Hosting.csproj" />
     <Project Path="NexusHR.BuildingBlocks.Security/NexusHR.BuildingBlocks.Security.csproj" />
   </Folder>
   <Folder Name="/contracts/">
@@ -46,3 +47,4 @@
     <Project Path="NexusHR.Hiring.UnitTests/NexusHR.Hiring.UnitTests.csproj" Id="00baef14-d4db-4965-8225-97208e9613f3" />
   </Folder>
 </Solution>
+

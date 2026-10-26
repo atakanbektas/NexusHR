@@ -13,6 +13,8 @@ import {
   Security,
 } from "@mui/icons-material";
 import keycloak from "./keycloak";
+import { Link as RouterLink } from "react-router-dom";
+import { CandidateReaderRoles, OnboardingReaderRoles, hasAnyRole } from "./roles";
 
 export default function AuthBar() {
   const username =
@@ -125,6 +127,8 @@ export default function AuthBar() {
           ))}
         </Stack>
 
+        {hasAnyRole(CandidateReaderRoles) && <Button component={RouterLink} to="/candidates">Adaylar</Button>}
+        {hasAnyRole(OnboardingReaderRoles) && <Button component={RouterLink} to="/onboardings">Onboarding</Button>}
         <Box sx={{ textAlign: "right", mr: 2 }}>
           <Typography
             variant="body2"

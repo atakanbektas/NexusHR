@@ -22,4 +22,6 @@
     <ProjectReference Include="..\NexusHR.Onboarding.Infrastructure\NexusHR.Onboarding.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup><ProjectReference Include="..\NexusHR.BuildingBlocks.Hosting\NexusHR.BuildingBlocks.Hosting.csproj" /></ItemGroup>
 </Project>
+

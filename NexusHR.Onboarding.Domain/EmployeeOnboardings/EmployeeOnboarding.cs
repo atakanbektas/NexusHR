@@ -111,6 +111,39 @@ public sealed class EmployeeOnboarding
     public IReadOnlyCollection<OnboardingTask> Tasks =>
         _tasks.AsReadOnly();
 
+    public void UpdateTask(Guid taskId, OnboardingTaskStatus status, DateTime now)
+    {
+        EnsureUtc(now);
+        if (Status is EmployeeOnboardingStatus.Completed or EmployeeOnboardingStatus.Cancelled)
+            throw new InvalidOperationException("This onboarding is closed.");
+        var task = _tasks.SingleOrDefault(task => task.Id == taskId)
+            ?? throw new KeyNotFoundException("Onboarding task not found.");
+        if (status == OnboardingTaskStatus.InProgress) task.Start();
+        else if (status == OnboardingTaskStatus.Completed) task.Complete(now);
+        else throw new ArgumentException("Task status must be InProgress or Completed.", nameof(status));
+
+        if (_tasks.All(item => item.Status == OnboardingTaskStatus.Completed))
+            Status = EmployeeOnboardingStatus.ReadyForStart;
+        UpdatedAtUtc = now;
+    }
+
+    public void Complete(DateTime now)
+    {
+        EnsureUtc(now);
+        if (Status == EmployeeOnboardingStatus.Completed) return;
+        if (Status != EmployeeOnboardingStatus.ReadyForStart ||
+            _tasks.Any(task => task.Status != OnboardingTaskStatus.Completed))
+            throw new InvalidOperationException("Complete every onboarding task first.");
+        Status = EmployeeOnboardingStatus.Completed;
+        UpdatedAtUtc = now;
+    }
+
+    private static void EnsureUtc(DateTime now)
+    {
+        if (now.Kind != DateTimeKind.Utc)
+            throw new ArgumentException("The timestamp must be UTC.", nameof(now));
+    }
+
     private void CreateDefaultItTasks(DateTime createdAtUtc)
     {
         var dueDate = ProposedStartDate.AddDays(-1);

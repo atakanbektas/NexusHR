@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Mvc;
 using NexusHR.BuildingBlocks.Security;
 using NexusHR.Onboarding.Application.EmployeeOnboardings.GetEmployeeOnboardingById;
 using NexusHR.Onboarding.Application.EmployeeOnboardings.GetEmployeeOnboardings;
+using NexusHR.Onboarding.Application.EmployeeOnboardings.UpdateOnboarding;
+using NexusHR.Onboarding.Domain.EmployeeOnboardings;
 
 namespace NexusHR.Onboarding.Api.Controllers;
 
@@ -14,6 +16,23 @@ public sealed class OnboardingsController(
     ISender sender)
     : ControllerBase
 {
+    [Authorize(Roles = NexusHrRoles.OnboardingEditors)]
+    [HttpPut("{id:guid}/tasks/{taskId:guid}/status")]
+    public async Task<IActionResult> UpdateTask(Guid id, Guid taskId,
+        UpdateTaskStatusRequest request, CancellationToken cancellationToken)
+    {
+        await sender.Send(new UpdateOnboardingCommand(id, taskId, request.Status), cancellationToken);
+        return NoContent();
+    }
+
+    [Authorize(Roles = NexusHrRoles.HrSpecialist)]
+    [HttpPost("{id:guid}/complete")]
+    public async Task<IActionResult> Complete(Guid id, CancellationToken cancellationToken)
+    {
+        await sender.Send(new UpdateOnboardingCommand(id, null, null), cancellationToken);
+        return NoContent();
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetAll(
         CancellationToken cancellationToken)
@@ -49,3 +68,5 @@ public sealed class OnboardingsController(
         return Ok(response);
     }
 }
+
+public sealed record UpdateTaskStatusRequest(OnboardingTaskStatus Status);

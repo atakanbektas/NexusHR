@@ -22,4 +22,6 @@
     <ProjectReference Include="..\NexusHR.BuildingBlocks.Security\NexusHR.BuildingBlocks.Security.csproj" />
   </ItemGroup>
 
+  <ItemGroup><ProjectReference Include="..\NexusHR.BuildingBlocks.Hosting\NexusHR.BuildingBlocks.Hosting.csproj" /></ItemGroup>
 </Project>
+

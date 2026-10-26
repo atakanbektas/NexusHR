@@ -77,4 +77,21 @@ public sealed class OnboardingTask
     public DateTime CreatedAtUtc { get; private set; }
 
     public DateTime? CompletedAtUtc { get; private set; }
+
+    internal void Start()
+    {
+        if (Status == OnboardingTaskStatus.InProgress) return;
+        if (Status != OnboardingTaskStatus.Pending)
+            throw new InvalidOperationException("Only pending tasks can be started.");
+        Status = OnboardingTaskStatus.InProgress;
+    }
+
+    internal void Complete(DateTime now)
+    {
+        if (Status == OnboardingTaskStatus.Completed) return;
+        if (Status != OnboardingTaskStatus.InProgress)
+            throw new InvalidOperationException("Start the task before completing it.");
+        Status = OnboardingTaskStatus.Completed;
+        CompletedAtUtc = now;
+    }
 }
