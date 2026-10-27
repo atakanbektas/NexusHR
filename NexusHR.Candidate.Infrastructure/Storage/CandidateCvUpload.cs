@@ -13,6 +13,7 @@ internal sealed class CandidateCvUpload(CandidateDbContext db, ICandidateDocumen
 {
     public async Task SaveAsync(CandidateEntity candidate, CandidateDocument document, byte[] content, CancellationToken cancellationToken)
     {
+        document.RecordContentHash(Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(content)));
         var intent = new CvUploadIntent { Id = document.Id, ObjectName = document.ObjectName,
             ReconcileAfterUtc = DateTime.UtcNow.AddMinutes(15) };
         db.Set<CvUploadIntent>().Add(intent);

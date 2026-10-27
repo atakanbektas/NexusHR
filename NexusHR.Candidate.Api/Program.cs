@@ -10,6 +10,7 @@ var builder =
     WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
+builder.Services.AddScoped<NexusHR.Candidate.Api.Controllers.CvAnalysisExceptionFilter>();
 builder.Services.AddOpenApi();
 
 
