@@ -1,49 +1,29 @@
 # Architecture overview
 
-Audit date: 2026-10-26. This describes the checked-in implementation; runtime behavior has not been verified in this environment.
+Current integration: Candidate, Hiring, Onboarding and Notification with YARP, Keycloak, PostgreSQL, RabbitMQ and MinIO. The Candidate-only initial audit is historical; current execution evidence belongs in the integration verification report.
 
-```mermaid
-flowchart LR
-    Browser[React / TypeScript / MUI] -->|OIDC code flow + PKCE| Keycloak
-    Browser -->|Bearer token| Gateway[YARP Gateway]
-    Gateway -->|Bearer token| API[Candidate API]
-    API --> Application[MediatR handlers + FluentValidation]
-    Application --> Domain[Candidate domain]
-    Application -->|Persistence and storage interfaces| Infrastructure[EF Core / MinIO / PdfPig]
-    Infrastructure --> CandidateDB[(Candidate PostgreSQL)]
-    Infrastructure --> MinIO[(CV objects)]
-    Keycloak --> IdentityDB[(Identity PostgreSQL)]
-```
+## Boundaries
 
-## Boundaries and persistence
+Domain owns business invariants without infrastructure dependencies. Application owns MediatR commands/queries and interfaces. Infrastructure implements EF, storage, broker and SMTP adapters. APIs own HTTP contracts/roles. Onboarding uses pipeline validation; existing Candidate/Hiring handlers retain explicit validators and compatible response contracts.
 
-- Domain owns Candidate and CandidateDocument entities and status transitions: Draft -> DocumentsPending -> ReadyForHiring; Archive is a domain operation without an API endpoint.
-- Application contains commands, queries, response records, validators, and persistence/document interfaces. Validation is invoked explicitly by create, update, extraction, and upload handlers; there is no validation pipeline behavior.
-- Infrastructure implements repositories with EF Core/Npgsql, object storage with MinIO, and heuristic PDF text extraction with PdfPig. Repositories save independently. There is no explicit application unit of work.
-- API maps HTTP contracts to MediatR requests. It performs migrations at startup. Three migrations exist (the intermediate AddCandidateDocuments migration is empty); the final snapshot includes unique email, object name, and candidate/document-type indexes and a cascading candidate foreign key.
-- Gateway proxies `/api/candidates/{**catch-all}` under an authenticated-user policy. Candidate API independently enforces authentication and endpoint roles and is also directly exposed locally.
-- Shared Security validates issuer, lifetime, signature, and `azp` against the web client, then maps Keycloak realm roles to .NET role claims. Audience validation is disabled. There is no implicit Admin override.
+Candidate owns contacts, CV metadata and verification. Hiring stores an eligible-candidate event projection, offers and decisions. Onboarding owns the accepted employee profile and default IT tasks. Its aggregate ID is the employee reference; there is no separate employee microservice.
 
-## Implemented product surface
+## Event flow
 
-Candidate create/update, paginated search/filter, detail, CV extraction/upload/download, and document verification endpoints exist. The frontend provides list, creation from CV, and detail/verification/download pages with role guards and loading/error states. It does not expose candidate editing or retrying upload against an existing draft.
+Candidate verification commits ReadyForHiring plus Outbox → Hiring Inbox creates eligibility → hiring/offer → OfferSent Outbox → Notification/SMTP → anonymous acceptance commits OfferAccepted plus Outbox → Onboarding Inbox creates a unique process and three tasks → HR completion commits OnboardingCompleted plus Outbox → Hiring Inbox marks Completed.
 
-| Operation | Intended permitted realm roles |
-| --- | --- |
-| Candidate list/detail | HrSpecialist, HrManager, DepartmentManager, Auditor |
-| Create/update/extract/upload/verify | HrSpecialist |
-| CV download | HrSpecialist, HrManager, Auditor |
+Business services have independent databases. Scoped EF bus Outbox commits messages with state changes; consumer EF Inbox/Outbox and unique business keys tolerate duplicates. Retry intervals are 1/5/15 seconds, with exhausted messages in MassTransit `_error` queues. Inbox retention is finite; SMTP delivery is not exactly-once.
 
-The initial audit found upload enforcing only authentication. The first Phase 1 change adds the existing CandidateEditors restriction to that endpoint. DepartmentManager intentionally cannot download CVs despite reading candidate records.
+## Persistence
 
-## Consistency boundary
+`xmin` optimistic concurrency protects Candidate, Hiring and Onboarding aggregates. Unique indexes protect normalized email, one CV per candidate, one active hiring process and one onboarding per hiring process. Conflicts map to ProblemDetails HTTP 409. Candidate contact updates stop after verification to preserve the Hiring snapshot.
 
-Upload writes MinIO, inserts document metadata (one database commit), then changes candidate status (another commit). Only metadata-insert exceptions trigger object deletion. A later status/save failure can leave inconsistent data; deletion can itself fail or mask the original exception. Prechecks do not prevent database uniqueness races. PostgreSQL and MinIO do not share an atomic transaction.
+Candidate create/update repositories commit individual commands; verification publishes to scoped Outbox before its repository save. CV upload uses a dedicated coordinator: save durable intent, upload under a two-minute deadline, lock the intent, then commit document metadata/status/intent deletion together. Compensation checks the persistent outcome in a fresh context before deleting an object. A reconciler handles expired intents every minute, in batches of 100, after a 15-minute reservation window. It takes the same lock, checks document references and cannot delete a finalized object. PostgreSQL/MinIO atomicity is not claimed. See ADR 001.
 
-The next milestone should commit metadata and status together within PostgreSQL, validate the transition before external I/O, and use explicit compensation plus durable reconciliation for storage failures and uncertain outcomes. It must address concurrent updates rather than relying on prechecks.
+## Operations and security
 
-## Local deployment and missing components
+Keycloak OIDC/PKCE authenticates the browser. Gateway and APIs independently enforce authentication; APIs enforce realm roles. Offer responses are anonymous capability-token operations with hash/expiry/single-use checks, rate/body limits and concurrency protection. Production requires external configuration, HTTPS identity metadata and an audience mapper.
 
-Compose defines Candidate PostgreSQL, identity PostgreSQL, Keycloak, MinIO, Candidate API, Gateway, and frontend. Host ports are 5433, 5434, 8080, 9000/9001, 5211, 5000, and 5173 respectively. API and Gateway validate the browser-facing localhost issuer while Compose uses internal Keycloak metadata URLs.
+Shared Hosting provides JSON logs, ProblemDetails with compatible code/errors fields, correlation IDs, health checks and optional OTLP export. Compose retains named volumes; migrations run automatically in Development only unless explicitly enabled. Production schema changes need a controlled rollout.
 
-Hiring, RabbitMQ, MassTransit, domain integration events, Outbox/Inbox, distributed workflow coordination, CI/CD, OpenTelemetry, and end-to-end tests are absent. Gateway `/health` is a static liveness response; Candidate dependency readiness checks are absent. Built-in logging exists but there is no configured trace/metrics exporter. All supplied credentials and HTTP settings are local-development fixtures, not production deployment settings.
+Limits: SMTP may duplicate mail, PDF parsing is not antivirus/OCR, MinIO upstream is archived, and single-machine Compose is not an HA/production deployment. See README, deployment notes and current verification report.

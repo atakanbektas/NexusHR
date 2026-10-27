@@ -1,0 +1,70 @@
+name: Build, test and integration
+on:
+  pull_request:
+  push:
+    branches: [main, 'codex/**']
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: NexusHR.Web/package-lock.json
+      - run: docker compose config --quiet
+      - name: Build MinIO from pinned upstream source
+        run: docker compose build candidate-storage
+      - run: dotnet restore NexusHR.slnx
+      - run: dotnet build NexusHR.slnx --no-restore --configuration Release
+      - name: Unit, HTTP security, PostgreSQL and MinIO integration tests
+        run: dotnet test NexusHR.slnx --no-build --configuration Release --logger trx --results-directory TestResults
+      - name: Check migrations match the model
+        run: |
+          dotnet tool restore
+          for service in Candidate Hiring Onboarding; do
+            dotnet ef migrations has-pending-model-changes --project NexusHR.$service.Infrastructure --startup-project NexusHR.$service.Api --configuration Release --no-build
+          done
+      - run: npm ci
+        working-directory: NexusHR.Web
+      - run: npm run lint && npm run build && npm audit --audit-level=high
+        working-directory: NexusHR.Web
+      - name: NuGet vulnerability gate
+        shell: pwsh
+        run: |
+          dotnet list NexusHR.slnx package --vulnerable --include-transitive --format json > nuget-audit.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $audit = Get-Content nuget-audit.json -Raw | ConvertFrom-Json
+          $findings = @($audit.projects.frameworks.topLevelPackages.vulnerabilities) + @($audit.projects.frameworks.transitivePackages.vulnerabilities)
+          if ($findings | Where-Object { $_.severity -in @('High', 'Critical') }) { throw 'High/Critical NuGet advisory found' }
+      - name: Start the complete application
+        run: docker compose up --build -d --wait --wait-timeout 300
+      - name: Browser end-to-end demo and authorization regression
+        working-directory: NexusHR.Web
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+      - name: Capture service diagnostics
+        if: always()
+        run: docker compose logs --no-color > compose.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verification-results
+          path: |
+            TestResults
+            NexusHR.Web/playwright-report
+            compose.log
+            nuget-audit.json
+      - if: always()
+        run: docker compose down

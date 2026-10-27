@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using NexusHR.Hiring.Api
     .Contracts.PublicOffers;
 using NexusHR.Hiring.Application
@@ -11,6 +12,8 @@ namespace NexusHR.Hiring.Api.Controllers;
 [ApiController]
 [AllowAnonymous]
 [Route("api/public/offers")]
+[EnableRateLimiting("public-offers")]
+[RequestSizeLimit(16 * 1024)]
 public sealed class PublicOffersController(
     ISender sender)
     : ControllerBase

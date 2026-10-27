@@ -1,5 +1,7 @@
 # Initial technical audit
 
+Historical baseline audit (Candidate-only). Later integration work supersedes current-state descriptions; see `integration-verification.md` and the updated architecture overview.
+
 Date: 2026-10-26. Scope: Phase 0 followed only by the scoped Phase 1 authorization repair. Baseline working tree was clean on branch1; work proceeds on `codex/audit-candidate-upload-authorization`.
 
 ## Inspection scope and evidence

@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -16,6 +17,7 @@ using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using System.Threading.RateLimiting;
 
 namespace NexusHR.BuildingBlocks.Hosting;
 
@@ -23,7 +25,22 @@ public static class ApiDefaults
 {
     public static WebApplicationBuilder AddApiDefaults(this WebApplicationBuilder builder)
     {
+        if (builder.Environment.IsProduction() && builder.Configuration["Keycloak:Authority"] is { } authority &&
+            (!authority.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+             !builder.Configuration.GetValue<bool>("Keycloak:RequireHttpsMetadata") ||
+             string.IsNullOrWhiteSpace(builder.Configuration["Keycloak:Audience"])))
+            throw new InvalidOperationException("Production requires HTTPS identity metadata and an explicit API audience.");
+
+        builder.Services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.AddPolicy("public-offers", context => RateLimitPartition.GetSlidingWindowLimiter(
+                context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                _ => new SlidingWindowRateLimiterOptions
+                { PermitLimit = 30, Window = TimeSpan.FromMinutes(1), SegmentsPerWindow = 6, QueueLimit = 0 }));
+        });
         builder.Logging.AddJsonConsole(options => options.IncludeScopes = true);
+        builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Warning);
         builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = context =>
             context.ProblemDetails.Extensions["traceId"] = Activity.Current?.TraceId.ToString() ?? context.HttpContext.TraceIdentifier);
         builder.Services.AddExceptionHandler<ApiExceptionHandler>();
@@ -49,7 +66,21 @@ public static class ApiDefaults
     public static void UseApiDefaults(this WebApplication app)
     {
         app.UseExceptionHandler();
-        app.UseStatusCodePages();
+        app.UseStatusCodePages(async status =>
+        {
+            await status.HttpContext.RequestServices.GetRequiredService<IProblemDetailsService>()
+                .TryWriteAsync(new ProblemDetailsContext { HttpContext = status.HttpContext,
+                    ProblemDetails = new ProblemDetails { Status = status.HttpContext.Response.StatusCode } });
+        });
+        app.Use(async (context, next) =>
+        {
+            var correlationId = Activity.Current?.TraceId.ToString() ?? context.TraceIdentifier;
+            context.Response.Headers["X-Correlation-ID"] = correlationId;
+            using var scope = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("Request")
+                .BeginScope(new Dictionary<string, object> { ["CorrelationId"] = correlationId });
+            await next(context);
+        });
+        app.UseRateLimiter();
         app.MapHealthChecks("/health/live", new() { Predicate = _ => false });
         app.MapHealthChecks("/health/ready");
     }

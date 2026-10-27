@@ -1,4 +1,5 @@
 using NexusHR.BuildingBlocks.Security;
+using NexusHR.BuildingBlocks.Hosting;
 using NexusHR.Gateway.CandidateOverview;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -64,7 +65,9 @@ builder.Services
         builder.Configuration.GetSection(
             "ReverseProxy"));
 
+builder.AddApiDefaults();
 var app = builder.Build();
+app.UseApiDefaults();
 
 app.UseCors(FrontendCorsPolicy);
 
