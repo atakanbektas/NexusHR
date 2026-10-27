@@ -8,11 +8,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\NexusHR.Candidate.Domain\NexusHR.Candidate.Domain.csproj" />
+    <ProjectReference Include="..\NexusHR.Contracts\NexusHR.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Folder Include="Abstractions\Data\" />
-    <Folder Include="Abstractions\Messaging\" />
   </ItemGroup>
 
   <ItemGroup>

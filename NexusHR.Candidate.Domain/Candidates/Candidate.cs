@@ -64,6 +64,8 @@ public sealed class Candidate
         string email,
         string phoneNumber)
     {
+        if (Status == CandidateStatus.ReadyForHiring)
+            throw new InvalidOperationException("Verified candidate information is locked for hiring. Update it before verification.");
         if (Status == CandidateStatus.Archived)
         {
             throw new InvalidOperationException(

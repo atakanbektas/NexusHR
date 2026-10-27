@@ -24,6 +24,8 @@ import {
   createCandidate,
   extractCandidateFromCv,
   uploadCandidateCv,
+  updateCandidate,
+  getCandidateById,
 } from "./candidateService";
 import type { CreateCandidateRequest } from "./candidateTypes";
 import {Link as RouterLink,} from "react-router-dom";
@@ -54,6 +56,8 @@ function getErrorMessage(error: unknown): string {
 }
 
 export default function CreateCandidateFromCvPage() {
+  const [savedCandidateId, setSavedCandidateId] = useState<string | null>(
+    () => sessionStorage.getItem("nexushr.pendingCandidateId"));
   const [selectedFile, setSelectedFile] =
     useState<File | null>(null);
 
@@ -148,15 +152,30 @@ async function handleSave() {
 
   try {
     // Önce taslak aday oluşturulur.
-    const response = await createCandidate({
+    const values = {
       firstName: form.firstName.trim(),
       lastName: form.lastName.trim(),
       email: form.email.trim(),
       phoneNumber: form.phoneNumber.trim(),
-    });
+    };
+    const response = savedCandidateId ? { id: savedCandidateId } : await createCandidate(values);
+    sessionStorage.setItem("nexushr.pendingCandidateId", response.id);
+    setSavedCandidateId(response.id);
+    if (savedCandidateId) {
+      const existing = await getCandidateById(savedCandidateId);
+      if (existing.status !== "Draft") {
+        setSuccessMessage(`Aday kaydı mevcut. Durum: ${existing.status}. Aday ID: ${existing.id}`);
+        sessionStorage.removeItem("nexushr.pendingCandidateId");
+        setSavedCandidateId(null);
+        return;
+      }
+      await updateCandidate(savedCandidateId, values);
+    }
 
     // Oluşan adayın ID'si kullanılarak CV MinIO'ya yüklenir.
     await uploadCandidateCv(response.id, selectedFile);
+    sessionStorage.removeItem("nexushr.pendingCandidateId");
+    setSavedCandidateId(null);
 
     setSuccessMessage(
       `Taslak aday ve CV başarıyla kaydedildi. Aday ID: ${response.id}`,
@@ -180,6 +199,10 @@ async function handleSave() {
       }}
     >
       <Container maxWidth="md">
+        {savedCandidateId && <Alert severity="warning" sx={{ mb: 2 }}>
+          Aday kaydedildi. Yeniden kaydetme aynı aday için CV yüklemesini dener.
+          <Button component={RouterLink} to={`/candidates/${savedCandidateId}`}>Aday kaydını aç</Button>
+        </Alert>}
         <Button
   component={RouterLink}
   to="/candidates"

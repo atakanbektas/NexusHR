@@ -27,3 +27,4 @@ COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
 
 CMD ["nginx", "-g", "daemon off;"]
+HEALTHCHECK --interval=10s --timeout=5s --start-period=10s CMD wget -q --spider http://127.0.0.1/ || exit 1

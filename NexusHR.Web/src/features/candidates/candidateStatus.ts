@@ -10,7 +10,7 @@ export const candidateStatuses: CandidateStatus[] = [
 export const candidateStatusLabels: Record<CandidateStatus, string> = {
   Draft: "Taslak",
   DocumentsPending: "Belge bekliyor",
-  ReadyForHiring: "İşe girişe hazır",
+ReadyForHiring: "Belgeleri onaylandı",
   Archived: "Arşivlendi",
 };
 

@@ -55,7 +55,8 @@ public static class DependencyInjection
                         ValidateIssuer = true,
                         ValidIssuer = authority,
 
-                        ValidateAudience = false,
+                        ValidateAudience = !string.IsNullOrWhiteSpace(configuration["Keycloak:Audience"]),
+                        ValidAudience = configuration["Keycloak:Audience"],
 
                         ValidateLifetime = true,
                         ValidateIssuerSigningKey = true,

@@ -4,3 +4,5 @@ dist
 .vscode
 .env*
 npm-debug.log*
+playwright-report
+test-results

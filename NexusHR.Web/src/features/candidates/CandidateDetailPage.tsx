@@ -22,6 +22,11 @@ import {
   useParams,
 } from "react-router-dom";
 import {
+  CandidateCvReaderRoles,
+  hasAnyRole,
+  NexusHrRoles,
+} from "../../auth/roles";
+import {
   downloadCandidateCv,
   getCandidateById,
   verifyCandidateDocuments,
@@ -33,30 +38,92 @@ import {
 import type {
   CandidateDetail,
 } from "./candidateTypes";
+import CreateHiringProcessDialog from
+  "../hiring/CreateHiringProcessDialog";
+import CandidateEditor from "./CandidateEditor";
 import {
-  CandidateCvReaderRoles,
-  hasAnyRole,
-  NexusHrRoles,
-} from "../../auth/roles";
+  getActiveHiringProcessByCandidateId,
+} from "../hiring/hiringService";
+import {
+  hiringStatusColors,
+  hiringStatusLabels,
+} from "../hiring/hiringStatus";
+import type {
+  ActiveHiringProcessLookup,
+  HiringProcessStatus,
+} from "../hiring/hiringTypes";
 
+type HiringAlertSeverity =
+  | "success"
+  | "info"
+  | "warning"
+  | "error";
 
+function getHiringStatusMessage(
+  status: HiringProcessStatus | null,
+): string {
+  switch (status) {
+    case "Draft":
+      return "Adayın işe alım süreci taslak durumda.";
 
+    case "OfferPrepared":
+      return "Aday için iş teklifi hazırlandı.";
 
+    case "OfferSent":
+      return "İş teklifi gönderildi. Adayın cevabı bekleniyor.";
+
+    case "OfferAccepted":
+      return "Aday iş teklifini kabul etti. İşe giriş işlemleri başlatılabilir.";
+
+    case "OfferRejected":
+      return "Aday iş teklifini reddetti. Gerekirse yeni bir işe alım süreci başlatılabilir.";
+
+    case "Cancelled":
+      return "Adayın önceki işe alım süreci iptal edildi. Gerekirse yeni bir süreç başlatılabilir.";
+
+    case "Completed":
+      return "Adayın işe alım süreci tamamlandı ve çalışan kaydı oluşturuldu.";
+
+    default:
+      return "Adayın belgeleri onaylandı ve işe alım süreci başlatılabilir.";
+  }
+}
+
+function getHiringStatusSeverity(
+  status: HiringProcessStatus | null,
+): HiringAlertSeverity {
+  switch (status) {
+    case "OfferAccepted":
+    case "Completed":
+      return "success";
+
+    case "OfferRejected":
+      return "error";
+
+    case "Cancelled":
+      return "warning";
+
+    default:
+      return "info";
+  }
+}
 
 export default function CandidateDetailPage() {
-
-      const canDownloadCv =
-  hasAnyRole(CandidateCvReaderRoles);
-
-const canVerifyDocuments =
-  hasAnyRole([
-    NexusHrRoles.HrSpecialist,
-  ]);
-
   const { id } = useParams();
+
+  const canDownloadCv =
+    hasAnyRole(CandidateCvReaderRoles);
+
+  const canVerifyDocuments =
+    hasAnyRole([
+      NexusHrRoles.HrSpecialist,
+    ]);
 
   const [candidate, setCandidate] =
     useState<CandidateDetail | null>(null);
+
+  const [hiringProcessLookup, setHiringProcessLookup] =
+    useState<ActiveHiringProcessLookup | null>(null);
 
   const [isLoading, setIsLoading] =
     useState(true);
@@ -75,21 +142,26 @@ const canVerifyDocuments =
 
   useEffect(() => {
     if (!id) {
-      setIsLoading(false);
       return;
     }
-
-
 
     let isActive = true;
 
     async function loadCandidate() {
       try {
-        const response =
-          await getCandidateById(id!);
+        const [
+          candidateResponse,
+          hiringProcessResponse,
+        ] = await Promise.all([
+          getCandidateById(id!),
+          getActiveHiringProcessByCandidateId(id!),
+        ]);
 
         if (isActive) {
-          setCandidate(response);
+          setCandidate(candidateResponse);
+          setHiringProcessLookup(
+            hiringProcessResponse,
+          );
         }
       } catch {
         if (isActive) {
@@ -163,7 +235,6 @@ const canVerifyDocuments =
         await getCandidateById(candidate.id);
 
       setCandidate(updatedCandidate);
-
       setSuccessMessage(
         "Adayın belgeleri doğrulandı. Aday artık işe alım sürecine hazır.",
       );
@@ -202,6 +273,9 @@ const canVerifyDocuments =
       </Box>
     );
   }
+
+  const hiringStatus =
+    hiringProcessLookup?.status ?? null;
 
   return (
     <Box
@@ -242,6 +316,10 @@ const canVerifyDocuments =
           </Alert>
         )}
 
+        {candidate && hasAnyRole([NexusHrRoles.HrSpecialist]) &&
+          (candidate.status === "Draft" || candidate.status === "DocumentsPending") &&
+          <CandidateEditor key={`${candidate.id}-${candidate.updatedAtUtc}`} candidate={candidate} onSaved={setCandidate} />}
+
         {candidate && (
           <Card
             elevation={0}
@@ -281,14 +359,22 @@ const canVerifyDocuments =
 
                 <Chip
                   label={
-                    candidateStatusLabels[
-                      candidate.status
-                    ]
+                    hiringStatus
+                      ? hiringStatusLabels[
+                          hiringStatus
+                        ]
+                      : candidateStatusLabels[
+                          candidate.status
+                        ]
                   }
                   color={
-                    candidateStatusColors[
-                      candidate.status
-                    ]
+                    hiringStatus
+                      ? hiringStatusColors[
+                          hiringStatus
+                        ]
+                      : candidateStatusColors[
+                          candidate.status
+                        ]
                   }
                   sx={{
                     alignSelf: {
@@ -366,66 +452,83 @@ const canVerifyDocuments =
                 }}
                 spacing={2}
               >
-{canDownloadCv && (
-  <Button
-    variant="outlined"
-    startIcon={
-      isDownloading
-        ? <CircularProgress size={18} />
-        : <Download />
-    }
-    disabled={
-      isDownloading ||
-      isVerifying
-    }
-    onClick={handleDownloadCv}
-  >
-    {isDownloading
-      ? "İndiriliyor"
-      : "CV’yi indir"}
-  </Button>
-)}
-
-                {canVerifyDocuments &&
-  candidate.status ===
-    "DocumentsPending" && (
+                {canDownloadCv && (
                   <Button
-                    variant="contained"
-                    color="success"
+                    variant="outlined"
                     startIcon={
-                      isVerifying
-                        ? (
-                          <CircularProgress
-                            size={18}
-                            color="inherit"
-                          />
-                        )
-                        : <CheckCircle />
+                      isDownloading
+                        ? <CircularProgress size={18} />
+                        : <Download />
                     }
                     disabled={
-                      isVerifying ||
-                      isDownloading
+                      isDownloading ||
+                      isVerifying
                     }
-                    onClick={
-                      handleVerifyDocuments
-                    }
+                    onClick={handleDownloadCv}
                   >
-                    {isVerifying
-                      ? "Doğrulanıyor"
-                      : "Belgeleri doğrula"}
+                    {isDownloading
+                      ? "İndiriliyor"
+                      : "CV’yi indir"}
                   </Button>
                 )}
+
+                {canVerifyDocuments &&
+                  candidate.status ===
+                    "DocumentsPending" && (
+                    <Button
+                      variant="contained"
+                      color="success"
+                      startIcon={
+                        isVerifying
+                          ? (
+                              <CircularProgress
+                                size={18}
+                                color="inherit"
+                              />
+                            )
+                          : <CheckCircle />
+                      }
+                      disabled={
+                        isVerifying ||
+                        isDownloading
+                      }
+                      onClick={
+                        handleVerifyDocuments
+                      }
+                    >
+                      {isVerifying
+                        ? "Doğrulanıyor"
+                        : "Belgeleri doğrula"}
+                    </Button>
+                  )}
               </Stack>
 
               {candidate.status ===
                 "ReadyForHiring" && (
-                <Alert
-                  severity="success"
+                <Stack
+                  spacing={2}
                   sx={{ mt: 3 }}
                 >
-                  Bu adayın belgeleri doğrulandı ve
-                  aday işe alım sürecine hazır.
-                </Alert>
+                  <Alert
+                    severity={
+                      getHiringStatusSeverity(
+                        hiringStatus,
+                      )
+                    }
+                  >
+                    {getHiringStatusMessage(
+                      hiringStatus,
+                    )}
+                  </Alert>
+
+                  {canVerifyDocuments && (
+                    <Box>
+                      <CreateHiringProcessDialog
+                        candidateId={candidate.id}
+                      />
+                    </Box>
+                  )}
+                </Stack>
               )}
             </CardContent>
           </Card>

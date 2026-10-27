@@ -1,4 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using MassTransit;
+using Microsoft.EntityFrameworkCore;
+using NexusHR.Candidate.Infrastructure.Storage;
 using CandidateEntity =
     NexusHR.Candidate.Domain.Candidates.Candidate;
 using CandidateDocumentEntity =
@@ -14,13 +16,25 @@ public sealed class CandidateDbContext(
         Set<CandidateEntity>();
 
     public DbSet<CandidateDocumentEntity> CandidateDocuments =>
-    Set<CandidateDocumentEntity>();
+        Set<CandidateDocumentEntity>();
 
     protected override void OnModelCreating(
         ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(
             typeof(CandidateDbContext).Assembly);
+
+        modelBuilder.Entity<CvUploadIntent>(entity =>
+        {
+            entity.ToTable("cv_upload_intents");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.ObjectName).HasMaxLength(500).IsRequired();
+            entity.HasIndex(item => item.ReconcileAfterUtc);
+        });
+
+        modelBuilder.AddInboxStateEntity();
+        modelBuilder.AddOutboxMessageEntity();
+        modelBuilder.AddOutboxStateEntity();
 
         base.OnModelCreating(modelBuilder);
     }

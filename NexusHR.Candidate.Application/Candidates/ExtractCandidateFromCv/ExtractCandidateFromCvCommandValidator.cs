@@ -1,4 +1,4 @@
-﻿using FluentValidation;
+using FluentValidation;
 
 namespace NexusHR.Candidate.Application.Candidates.ExtractCandidateFromCv;
 
@@ -10,16 +10,17 @@ public sealed class ExtractCandidateFromCvCommandValidator
     public ExtractCandidateFromCvCommandValidator()
     {
         RuleFor(x => x.FileName)
+            .Cascade(CascadeMode.Stop)
             .NotEmpty()
             .WithMessage("CV dosyasının adı boş olamaz.")
             .Must(fileName =>
-                Path.GetExtension(fileName)
-                    .Equals(
+                string.Equals(Path.GetExtension(fileName),
                         ".pdf",
                         StringComparison.OrdinalIgnoreCase))
-            .WithMessage("Yalnızca PDF dosyaları yüklenebilir.");
+            .WithMessage("Yalnızca PDF dosyaları yüklenebilir.").MaximumLength(255);
 
         RuleFor(x => x.FileContent)
+            .Cascade(CascadeMode.Stop)
             .NotEmpty()
             .WithMessage("CV dosyası boş olamaz.")
             .Must(content => content.Length <= MaximumFileSize)

@@ -8,10 +8,13 @@ import {
   Typography,
 } from "@mui/material";
 import {
+  Login,
   Logout,
   Security,
 } from "@mui/icons-material";
 import keycloak from "./keycloak";
+import { Link as RouterLink } from "react-router-dom";
+import { CandidateReaderRoles, OnboardingReaderRoles, hasAnyRole } from "./roles";
 
 export default function AuthBar() {
   const username =
@@ -26,10 +29,57 @@ export default function AuthBar() {
         role !== "uma_authorization",
     ) ?? [];
 
+  async function handleLogin() {
+    await keycloak.login({
+      redirectUri: window.location.origin,
+    });
+  }
+
   async function handleLogout() {
     await keycloak.logout({
       redirectUri: window.location.origin,
     });
+  }
+
+  if (!keycloak.authenticated) {
+    return (
+      <AppBar
+        position="sticky"
+        elevation={0}
+        color="inherit"
+        sx={{
+          borderBottom: "1px solid",
+          borderColor: "divider",
+        }}
+      >
+        <Toolbar>
+          <Security
+            color="primary"
+            sx={{ mr: 1.5 }}
+          />
+
+          <Typography
+            variant="h6"
+            sx={{
+              fontWeight: 800,
+              flexGrow: 1,
+            }}
+          >
+            NexusHR
+          </Typography>
+
+          <Button
+            color="inherit"
+            startIcon={<Login />}
+            onClick={() => {
+              void handleLogin();
+            }}
+          >
+            Personel girişi
+          </Button>
+        </Toolbar>
+      </AppBar>
+    );
   }
 
   return (
@@ -77,6 +127,8 @@ export default function AuthBar() {
           ))}
         </Stack>
 
+        {hasAnyRole(CandidateReaderRoles) && <Button component={RouterLink} to="/candidates">Adaylar</Button>}
+        {hasAnyRole(OnboardingReaderRoles) && <Button component={RouterLink} to="/onboardings">Onboarding</Button>}
         <Box sx={{ textAlign: "right", mr: 2 }}>
           <Typography
             variant="body2"

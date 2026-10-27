@@ -49,3 +49,4 @@ export interface CandidateDetail {
   createdAtUtc: string;
   updatedAtUtc: string | null;
 }
+

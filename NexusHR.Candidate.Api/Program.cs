@@ -1,3 +1,4 @@
+using NexusHR.BuildingBlocks.Hosting;
 using Microsoft.EntityFrameworkCore;
 using NexusHR.BuildingBlocks.Security;
 using NexusHR.Candidate.Application;
@@ -10,6 +11,7 @@ var builder =
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+
 
 builder.Services.AddApplication();
 
@@ -36,8 +38,12 @@ builder.Services.AddCors(options =>
         });
 });
 
+builder.Services.AddDatabaseReadiness<CandidateDbContext>();
+builder.AddApiDefaults();
 var app = builder.Build();
+app.UseApiDefaults();
 
+if (app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("Database:ApplyMigrations"))
 await using (var scope =
              app.Services.CreateAsyncScope())
 {
@@ -62,6 +68,7 @@ app.UseCors(FrontendCorsPolicy);
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapHealthChecks("/health");
 app.MapControllers();
 
 app.Run();

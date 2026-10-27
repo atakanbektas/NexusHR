@@ -11,6 +11,7 @@ import {
   Container,
   FormControl,
   InputLabel,
+  ListSubheader,
   MenuItem,
   Pagination,
   Select,
@@ -31,22 +32,44 @@ import {
   Search,
   Visibility,
 } from "@mui/icons-material";
-import { getCandidates } from "./candidateService";
+import {
+  hasAnyRole,
+  NexusHrRoles,
+} from "../../auth/roles";
 import {
   candidateStatusColors,
   candidateStatusLabels,
   candidateStatuses,
 } from "./candidateStatus";
+import {
+  getCandidateOverview,
+} from "./candidateOverviewService";
 import type {
-  CandidateListItem,
+  CandidateOverviewItem,
+  CandidateOverviewStatusFilter,
+} from "./candidateOverviewTypes";
+import type {
   CandidateStatus,
 } from "./candidateTypes";
 import {
-  hasAnyRole,
-  NexusHrRoles,
-} from "../../auth/roles";
+  hiringStatusColors,
+  hiringStatusLabels,
+  hiringStatuses,
+} from "../hiring/hiringStatus";
+import type {
+  HiringProcessStatus,
+} from "../hiring/hiringTypes";
 
 const pageSize = 10;
+
+type ChipColor =
+  | "default"
+  | "primary"
+  | "secondary"
+  | "error"
+  | "info"
+  | "success"
+  | "warning";
 
 function getErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
@@ -69,14 +92,42 @@ function getErrorMessage(error: unknown): string {
   return "Adaylar yüklenirken beklenmeyen bir hata oluştu.";
 }
 
-const canCreateCandidate =
-  hasAnyRole([
-    NexusHrRoles.HrSpecialist,
-  ]);
+function getStatusLabel(
+  candidate: CandidateOverviewItem,
+): string {
+  if (candidate.displayStatusSource === "Hiring") {
+    return hiringStatusLabels[
+      candidate.displayStatus as HiringProcessStatus
+    ];
+  }
+
+  return candidateStatusLabels[
+    candidate.displayStatus as CandidateStatus
+  ];
+}
+
+function getStatusColor(
+  candidate: CandidateOverviewItem,
+): ChipColor {
+  if (candidate.displayStatusSource === "Hiring") {
+    return hiringStatusColors[
+      candidate.displayStatus as HiringProcessStatus
+    ];
+  }
+
+  return candidateStatusColors[
+    candidate.displayStatus as CandidateStatus
+  ];
+}
 
 export default function CandidateListPage() {
+  const canCreateCandidate =
+    hasAnyRole([
+      NexusHrRoles.HrSpecialist,
+    ]);
+
   const [candidates, setCandidates] =
-    useState<CandidateListItem[]>([]);
+    useState<CandidateOverviewItem[]>([]);
 
   const [page, setPage] = useState(1);
 
@@ -87,13 +138,13 @@ export default function CandidateListPage() {
     useState("");
 
   const [selectedStatus, setSelectedStatus] =
-    useState<CandidateStatus | "">("");
+    useState<CandidateOverviewStatusFilter | "">("");
 
   const [appliedSearch, setAppliedSearch] =
     useState("");
 
   const [appliedStatus, setAppliedStatus] =
-    useState<CandidateStatus | "">("");
+    useState<CandidateOverviewStatusFilter | "">("");
 
   const [isLoading, setIsLoading] =
     useState(true);
@@ -109,7 +160,7 @@ export default function CandidateListPage() {
       setErrorMessage(null);
 
       try {
-        const response = await getCandidates(
+        const response = await getCandidateOverview(
           page,
           pageSize,
           appliedSearch,
@@ -215,17 +266,17 @@ export default function CandidateListPage() {
             </Typography>
           </Stack>
 
-{canCreateCandidate && (
-  <Button
-    component={Link}
-    to="/candidates/new"
-    variant="contained"
-    size="large"
-    startIcon={<Add />}
-  >
-    Yeni aday oluştur
-  </Button>
-)}
+          {canCreateCandidate && (
+            <Button
+              component={Link}
+              to="/candidates/new"
+              variant="contained"
+              size="large"
+              startIcon={<Add />}
+            >
+              Yeni aday oluştur
+            </Button>
+          )}
         </Stack>
 
         <Card
@@ -253,7 +304,7 @@ export default function CandidateListPage() {
               display: "grid",
               gridTemplateColumns: {
                 xs: "1fr",
-                md: "minmax(300px, 1fr) 260px auto auto",
+                md: "minmax(300px, 1fr) 280px auto auto",
               },
               gap: 2,
               alignItems: "center",
@@ -276,18 +327,18 @@ export default function CandidateListPage() {
             />
 
             <FormControl fullWidth>
-              <InputLabel id="candidate-status-label">
-                Durum
+              <InputLabel id="overview-status-label">
+                Görünen durum
               </InputLabel>
 
               <Select
-                labelId="candidate-status-label"
-                label="Durum"
+                labelId="overview-status-label"
+                label="Görünen durum"
                 value={selectedStatus}
                 onChange={event => {
                   setSelectedStatus(
                     event.target.value as
-                      | CandidateStatus
+                      | CandidateOverviewStatusFilter
                       | "",
                   );
                 }}
@@ -296,20 +347,31 @@ export default function CandidateListPage() {
                   Tüm durumlar
                 </MenuItem>
 
-                {candidateStatuses.map(
-                  status => (
-                    <MenuItem
-                      key={status}
-                      value={status}
-                    >
-                      {
-                        candidateStatusLabels[
-                          status
-                        ]
-                      }
-                    </MenuItem>
-                  ),
-                )}
+                <ListSubheader>
+                  Aday durumu
+                </ListSubheader>
+
+                {candidateStatuses.map(status => (
+                  <MenuItem
+                    key={`candidate:${status}`}
+                    value={`candidate:${status}`}
+                  >
+                    {candidateStatusLabels[status]}
+                  </MenuItem>
+                ))}
+
+                <ListSubheader>
+                  İşe alım durumu
+                </ListSubheader>
+
+                {hiringStatuses.map(status => (
+                  <MenuItem
+                    key={`hiring:${status}`}
+                    value={`hiring:${status}`}
+                  >
+                    {hiringStatusLabels[status]}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
 
@@ -409,24 +471,24 @@ export default function CandidateListPage() {
                   : "İlk aday kaydını oluşturarak başlayabilirsiniz."}
               </Typography>
 
-{hasActiveFilter ? (
-  <Button
-    variant="outlined"
-    startIcon={<Clear />}
-    onClick={handleClearFilters}
-  >
-    Filtreleri temizle
-  </Button>
-) : canCreateCandidate ? (
-  <Button
-    component={Link}
-    to="/candidates/new"
-    variant="contained"
-    startIcon={<Add />}
-  >
-    İlk adayı oluştur
-  </Button>
-) : null}
+              {hasActiveFilter ? (
+                <Button
+                  variant="outlined"
+                  startIcon={<Clear />}
+                  onClick={handleClearFilters}
+                >
+                  Filtreleri temizle
+                </Button>
+              ) : canCreateCandidate ? (
+                <Button
+                  component={Link}
+                  to="/candidates/new"
+                  variant="contained"
+                  startIcon={<Add />}
+                >
+                  İlk adayı oluştur
+                </Button>
+              ) : null}
             </Stack>
           ) : (
             <>
@@ -439,8 +501,7 @@ export default function CandidateListPage() {
                 }}
               >
                 <Typography color="text.secondary">
-                  Toplam{" "}
-                  <strong>{totalCount}</strong>{" "}
+                  Toplam <strong>{totalCount}</strong>{" "}
                   aday bulundu.
                 </Typography>
               </Box>
@@ -476,77 +537,55 @@ export default function CandidateListPage() {
                   </TableHead>
 
                   <TableBody>
-                    {candidates.map(
-                      candidate => (
-                        <TableRow
-                          key={candidate.id}
-                          hover
-                        >
-                          <TableCell>
-                            <Typography
-                              sx={{
-                                fontWeight: 650,
-                              }}
-                            >
-                              {
-                                candidate.firstName
-                              }{" "}
-                              {
-                                candidate.lastName
-                              }
-                            </Typography>
-                          </TableCell>
+                    {candidates.map(candidate => (
+                      <TableRow
+                        key={candidate.id}
+                        hover
+                      >
+                        <TableCell>
+                          <Typography
+                            sx={{ fontWeight: 650 }}
+                          >
+                            {candidate.firstName}{" "}
+                            {candidate.lastName}
+                          </Typography>
+                        </TableCell>
 
-                          <TableCell>
-                            {candidate.email}
-                          </TableCell>
+                        <TableCell>
+                          {candidate.email}
+                        </TableCell>
 
-                          <TableCell>
-                            {
-                              candidate.phoneNumber
-                            }
-                          </TableCell>
+                        <TableCell>
+                          {candidate.phoneNumber}
+                        </TableCell>
 
-                          <TableCell>
-                            <Chip
-                              label={
-                                candidateStatusLabels[
-                                  candidate.status
-                                ]
-                              }
-                              color={
-                                candidateStatusColors[
-                                  candidate.status
-                                ]
-                              }
-                              size="small"
-                            />
-                          </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={getStatusLabel(candidate)}
+                            color={getStatusColor(candidate)}
+                            size="small"
+                          />
+                        </TableCell>
 
-                          <TableCell>
-                            {new Date(
-                              candidate.createdAtUtc,
-                            ).toLocaleString(
-                              "tr-TR",
-                            )}
-                          </TableCell>
+                        <TableCell>
+                          {new Date(
+                            candidate.createdAtUtc,
+                          ).toLocaleString("tr-TR")}
+                        </TableCell>
 
-                          <TableCell align="right">
-                            <Button
-                              component={Link}
-                              to={`/candidates/${candidate.id}`}
-                              variant="outlined"
-                              size="small"
-                              startIcon={
-                                <Visibility />
-                              }
-                            >
-                              Detay
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ),
-                    )}
+                        <TableCell align="right">
+                          <Button
+                            component={Link}
+                            to={`/candidates/${candidate.id}`}
+                            variant="outlined"
+                            size="small"
+                            startIcon={<Visibility />}
+                          >
+                            Detay
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </TableContainer>
@@ -563,10 +602,7 @@ export default function CandidateListPage() {
                     page={page}
                     count={totalPages}
                     color="primary"
-                    onChange={(
-                      _,
-                      newPage,
-                    ) => {
+                    onChange={(_, newPage) => {
                       setPage(newPage);
                     }}
                   />

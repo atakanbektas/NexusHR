@@ -1,6 +1,10 @@
 <Solution>
   <Folder Name="/building-blocks/">
+    <Project Path="NexusHR.BuildingBlocks.Hosting/NexusHR.BuildingBlocks.Hosting.csproj" />
     <Project Path="NexusHR.BuildingBlocks.Security/NexusHR.BuildingBlocks.Security.csproj" />
+  </Folder>
+  <Folder Name="/contracts/">
+    <Project Path="NexusHR.Contracts/NexusHR.Contracts.csproj" />
   </Folder>
   <Folder Name="/docs/" />
   <Folder Name="/Solution Items/">
@@ -17,9 +21,33 @@
     <Project Path="NexusHR.Candidate.Domain/NexusHR.Candidate.Domain.csproj" />
     <Project Path="NexusHR.Candidate.Infrastructure/NexusHR.Candidate.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/src/Services/Hiring/">
+    <Project Path="NexusHR.Hiring.Api/NexusHR.Hiring.Api.csproj" />
+    <Project Path="NexusHR.Hiring.Application/NexusHR.Hiring.Application.csproj" />
+    <Project Path="NexusHR.Hiring.Domain/NexusHR.Hiring.Domain.csproj" />
+    <Project Path="NexusHR.Hiring.Infrastructure/NexusHR.Hiring.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/Notification/">
+    <Project Path="NexusHR.Notification.Api/NexusHR.Notification.Api.csproj" />
+    <Project Path="NexusHR.Notification.Application/NexusHR.Notification.Application.csproj" />
+    <Project Path="NexusHR.Notification.Infrastructure/NexusHR.Notification.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/Onboarding/">
+    <Project Path="NexusHR.Onboarding.Api/NexusHR.Onboarding.Api.csproj" />
+    <Project Path="NexusHR.Onboarding.Application/NexusHR.Onboarding.Application.csproj" />
+    <Project Path="NexusHR.Onboarding.Domain/NexusHR.Onboarding.Domain.csproj" />
+    <Project Path="NexusHR.Onboarding.Infrastructure/NexusHR.Onboarding.Infrastructure.csproj" />
+  </Folder>
   <Folder Name="/tests/" />
+  <Folder Name="/tests/Onboarding/">
+    <Project Path="NexusHR.Onboarding.Tests/NexusHR.Onboarding.Tests.csproj" />
+  </Folder>
   <Folder Name="/tests/Candidate/">
     <Project Path="NexusHR.Candidate.IntegrationTests/NexusHR.Candidate.IntegrationTests.csproj" />
     <Project Path="NexusHR.Candidate.UnitTests/NexusHR.Candidate.UnitTests.csproj" />
   </Folder>
+  <Folder Name="/tests/Hiring/">
+    <Project Path="NexusHR.Hiring.UnitTests/NexusHR.Hiring.UnitTests.csproj" Id="00baef14-d4db-4965-8225-97208e9613f3" />
+  </Folder>
 </Solution>
+

@@ -59,7 +59,6 @@ internal sealed class CandidateRepository(
         CancellationToken cancellationToken)
     {
         return dbContext.Candidates
-            .AsNoTracking()
             .SingleOrDefaultAsync(
                 candidate => candidate.Id == candidateId,
                 cancellationToken);
