@@ -6,6 +6,7 @@ using NexusHR.Onboarding.Application.Abstractions.Persistence;
 using NexusHR.Onboarding.Infrastructure.Messaging.Consumers;
 using NexusHR.Onboarding.Infrastructure.Persistence;
 using NexusHR.Onboarding.Infrastructure.Repositories;
+using NexusHR.Onboarding.Infrastructure.Messaging;
 
 namespace NexusHR.Onboarding.Infrastructure;
 
@@ -83,6 +84,7 @@ public static class DependencyInjection
                 {
                     rabbitMq.Host(
                         rabbitMqHost,
+                        ushort.Parse(rabbitMqSection["Port"] ?? "5672", System.Globalization.CultureInfo.InvariantCulture),
                         rabbitMqVirtualHost,
                         host =>
                         {
@@ -97,6 +99,7 @@ public static class DependencyInjection
         services.AddScoped<
             IEmployeeOnboardingRepository,
             EmployeeOnboardingRepository>();
+        services.AddScoped<IIntegrationEventPublisher, IntegrationEventPublisher>();
 
         services.AddScoped<IUnitOfWork>(
             serviceProvider =>

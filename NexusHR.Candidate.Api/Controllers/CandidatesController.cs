@@ -269,6 +269,8 @@ public sealed class CandidatesController(
                 "Candidate.CvAlreadyExists" =>
                     Conflict(errorResponse),
 
+                "Candidate.InvalidStatus" => Conflict(errorResponse),
+
                 _ => BadRequest(errorResponse)
             };
         }

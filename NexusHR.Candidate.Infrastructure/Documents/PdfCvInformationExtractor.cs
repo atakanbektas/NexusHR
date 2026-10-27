@@ -11,11 +11,11 @@ internal sealed class PdfCvInformationExtractor
 {
     private static readonly Regex EmailRegex = new(
         @"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     private static readonly Regex PhoneRegex = new(
         @"(?:\+?90|0)?\s*\(?5\d{2}\)?[\s.-]*\d{3}[\s.-]*\d{2}[\s.-]*\d{2}",
-        RegexOptions.Compiled);
+        RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     public Task<ExtractedCandidateDraft> ExtractAsync(
         byte[] fileContent,
@@ -27,6 +27,9 @@ internal sealed class PdfCvInformationExtractor
 
         using var document = PdfDocument.Open(fileContent);
 
+        if (document.NumberOfPages > 50)
+            throw new InvalidDataException("CV must contain no more than 50 pages.");
+
         foreach (var page in document.GetPages())
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -34,6 +37,8 @@ internal sealed class PdfCvInformationExtractor
             var pageText = ContentOrderTextExtractor.GetText(page);
 
             textBuilder.AppendLine(pageText);
+            if (textBuilder.Length > 500_000)
+                throw new InvalidDataException("CV text exceeds the extraction limit.");
         }
 
         var text = textBuilder.ToString();

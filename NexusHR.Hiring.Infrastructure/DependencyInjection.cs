@@ -60,6 +60,7 @@ public static class DependencyInjection
 
             configurator.AddConsumer<
                 CandidateReadyForHiringConsumer>();
+            configurator.AddConsumer<EmployeeOnboardingCompletedConsumer>();
 
             configurator
                 .AddEntityFrameworkOutbox<HiringDbContext>(

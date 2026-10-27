@@ -134,6 +134,9 @@ public static class DependencyInjection
             ICandidateDocumentRepository,
             CandidateDocumentRepository>();
 
+        services.AddScoped<ICandidateCvUpload, CandidateCvUpload>();
+        services.AddHostedService<CvUploadReconciler>();
+
         services.AddScoped<
             ICvInformationExtractor,
             PdfCvInformationExtractor>();

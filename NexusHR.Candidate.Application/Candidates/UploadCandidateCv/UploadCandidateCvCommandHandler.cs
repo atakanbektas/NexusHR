@@ -9,7 +9,7 @@ namespace NexusHR.Candidate.Application.Candidates.UploadCandidateCv;
 internal sealed class UploadCandidateCvCommandHandler(
     ICandidateRepository candidateRepository,
     ICandidateDocumentRepository documentRepository,
-    ICandidateDocumentStorage documentStorage,
+    ICandidateCvUpload cvUpload,
     IValidator<UploadCandidateCvCommand> validator)
     : IRequestHandler<
         UploadCandidateCvCommand,
@@ -57,6 +57,9 @@ internal sealed class UploadCandidateCvCommandHandler(
                 "Aday için daha önce CV yüklenmiş.");
         }
 
+        if (candidate.Status != CandidateStatus.Draft)
+            return UploadCandidateCvResponse.Failure("Candidate.InvalidStatus", "CV upload requires a draft candidate.");
+
         var documentId = Guid.NewGuid();
 
         var objectName =
@@ -71,32 +74,7 @@ internal sealed class UploadCandidateCvCommandHandler(
             request.ContentType,
             request.FileContent.LongLength);
 
-        await documentStorage.UploadAsync(
-            objectName,
-            request.FileContent,
-            request.ContentType,
-            cancellationToken);
-
-        try
-        {
-            await documentRepository.AddAsync(
-                document,
-                cancellationToken);
-        }
-        catch
-        {
-            await documentStorage.DeleteAsync(
-                objectName,
-                CancellationToken.None);
-
-            throw;
-        }
-
-        candidate.MarkDocumentsPending();
-
-        await candidateRepository.UpdateAsync(
-            candidate,
-            cancellationToken);
+        await cvUpload.SaveAsync(candidate, document, request.FileContent, cancellationToken);
 
         return UploadCandidateCvResponse.Success(document.Id);
     }

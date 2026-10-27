@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Hosting;
 using NexusHR.BuildingBlocks.Security;
 using NexusHR.Candidate.Api.Controllers;
 using NexusHR.Candidate.Application;
@@ -16,32 +17,29 @@ namespace NexusHR.Candidate.IntegrationTests.Candidates;
 
 public sealed class CvUploadAuthorizationTests : IDisposable
 {
-    private readonly TestServer server;
+    private readonly WebApplication app;
     private readonly HttpClient client;
 
     public CvUploadAuthorizationTests()
     {
         // Host the real controller and authorization middleware without production
         // startup migrations or external services. Identity is supplied only in tests.
-        server = new TestServer(new WebHostBuilder()
-            .ConfigureServices(services =>
-            {
-                services.AddControllers()
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
+        builder.WebHost.UseTestServer();
+        var services = builder.Services;
+        services.AddControllers()
                     .AddApplicationPart(typeof(CandidatesController).Assembly);
                 services.AddApplication();
                 services.AddAuthentication("Test")
                     .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(
                         "Test", _ => { });
-                services.AddAuthorization();
-            })
-            .Configure(app =>
-            {
-                app.UseRouting();
-                app.UseAuthentication();
-                app.UseAuthorization();
-                app.UseEndpoints(endpoints => endpoints.MapControllers());
-            }));
-        client = server.CreateClient();
+        services.AddAuthorization();
+        app = builder.Build();
+        app.UseAuthentication();
+        app.UseAuthorization();
+        app.MapControllers();
+        app.Start();
+        client = app.GetTestClient();
     }
 
     [Fact]
@@ -95,6 +93,7 @@ public sealed class CvUploadAuthorizationTests : IDisposable
     private async Task<HttpResponseMessage> UploadAsync()
     {
         using var content = new MultipartFormDataContent();
+        content.Add(new StringContent("validation"), "description");
         return await client.PostAsync(
             $"/api/candidates/{Guid.NewGuid()}/documents/cv", content);
     }
@@ -102,7 +101,7 @@ public sealed class CvUploadAuthorizationTests : IDisposable
     public void Dispose()
     {
         client.Dispose();
-        server.Dispose();
+        app.DisposeAsync().AsTask().GetAwaiter().GetResult();
     }
 
     private sealed class TestAuthenticationHandler(

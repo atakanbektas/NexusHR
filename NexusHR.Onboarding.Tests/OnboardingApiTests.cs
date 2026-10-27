@@ -23,6 +23,7 @@ public sealed class OnboardingApiTests : IDisposable
     private readonly WebApplication app;
     private readonly HttpClient client;
     private readonly MemoryRepository repository = new();
+    private readonly RecordingPublisher events = new();
 
     public OnboardingApiTests()
     {
@@ -33,6 +34,7 @@ public sealed class OnboardingApiTests : IDisposable
         builder.Services.AddApplication();
         builder.Services.AddSingleton<IEmployeeOnboardingRepository>(repository);
         builder.Services.AddSingleton<IUnitOfWork>(repository);
+        builder.Services.AddSingleton<IIntegrationEventPublisher>(events);
         builder.Services.AddAuthentication("Test").AddScheme<AuthenticationSchemeOptions, IdentityHandler>("Test", _ => { });
         builder.Services.AddAuthorization();
         app = builder.Build();
@@ -75,6 +77,14 @@ public sealed class OnboardingApiTests : IDisposable
         }
         using var response = await client.PostAsync($"/api/onboardings/{repository.Item.Id}/complete", null);
         Assert.Equal(role == "HrSpecialist" ? HttpStatusCode.NoContent : HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(role == "HrSpecialist" ? 1 : 0, events.Messages.Count);
+        if (role == "HrSpecialist")
+        {
+            Assert.IsType<NexusHR.Contracts.Onboarding.EmployeeOnboardingCompletedIntegrationEvent>(events.Messages.Single());
+            using var repeated = await client.PostAsync($"/api/onboardings/{repository.Item.Id}/complete", null);
+            Assert.Equal(HttpStatusCode.NoContent, repeated.StatusCode);
+            Assert.Single(events.Messages);
+        }
     }
 
     [Fact]
@@ -115,5 +125,12 @@ public sealed class OnboardingApiTests : IDisposable
             var identity = new ClaimsIdentity([new Claim(ClaimTypes.Role, role)], Scheme.Name);
             return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme.Name)));
         }
+    }
+
+    private sealed class RecordingPublisher : IIntegrationEventPublisher
+    {
+        public List<object> Messages { get; } = [];
+        public Task PublishAsync<T>(T message, CancellationToken cancellationToken) where T : class
+        { Messages.Add(message); return Task.CompletedTask; }
     }
 }

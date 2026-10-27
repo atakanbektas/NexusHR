@@ -14,6 +14,7 @@ internal sealed class CandidateConfiguration
         builder.ToTable("candidates");
 
         builder.HasKey(x => x.Id);
+        builder.Property<uint>("xmin").IsRowVersion();
 
         builder.Property(x => x.FirstName)
             .HasMaxLength(100)

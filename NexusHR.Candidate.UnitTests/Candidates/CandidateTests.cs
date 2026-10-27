@@ -5,6 +5,15 @@ namespace NexusHR.Candidate.UnitTests.Candidates;
 public sealed class CandidateTests
 {
     [Fact]
+    public void VerifiedInformationCannotDivergeFromHiringSnapshot()
+    {
+        var candidate = CreateCandidate();
+        candidate.MarkDocumentsPending();
+        candidate.MarkReadyForHiring();
+        Assert.Throws<InvalidOperationException>(() => candidate.UpdateInformation(
+            "Changed", "Name", "other@example.test", "05555555555"));
+    }
+    [Fact]
     public void Constructor_ShouldCreateCandidate_WithDraftStatus()
     {
         var candidate = CreateCandidate();

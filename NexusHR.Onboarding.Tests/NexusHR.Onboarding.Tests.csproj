@@ -10,7 +10,7 @@
     <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.10" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
-    <PackageReference Include="Testcontainers.PostgreSql" Version="4.8.1" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="4.16.0" />
     <ProjectReference Include="..\NexusHR.Onboarding.Api\NexusHR.Onboarding.Api.csproj" />
     <ProjectReference Include="..\NexusHR.Candidate.Infrastructure\NexusHR.Candidate.Infrastructure.csproj" />
     <ProjectReference Include="..\NexusHR.Hiring.Infrastructure\NexusHR.Hiring.Infrastructure.csproj" />
