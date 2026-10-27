@@ -2,6 +2,8 @@
 
 NexusHR connects candidate verification, hiring offers and employee onboarding. A .NET 10 / React portfolio application with explicit business boundaries, durable messaging and tested failure handling.
 
+**Optional AI CV Analysis:** Candidate-owned asynchronous analysis with evidence, HR review, durable jobs and atomic budget limits. Disabled by default; no paid API calls in CI. See [configuration and recovery](docs/ai-cv-analysis.md) and [ADR 004](docs/adr/004-async-cv-analysis.md).
+
 **Verification:** see [integration results](docs/audits/integration-verification.md). Implementation, executed tests and production limitations are reported separately.
 
 ## Business workflow
