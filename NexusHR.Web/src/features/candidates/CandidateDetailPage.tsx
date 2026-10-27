@@ -40,6 +40,7 @@ import type {
 } from "./candidateTypes";
 import CreateHiringProcessDialog from
   "../hiring/CreateHiringProcessDialog";
+import CandidateEditor from "./CandidateEditor";
 import {
   getActiveHiringProcessByCandidateId,
 } from "../hiring/hiringService";
@@ -314,6 +315,10 @@ export default function CandidateDetailPage() {
             {successMessage}
           </Alert>
         )}
+
+        {candidate && hasAnyRole([NexusHrRoles.HrSpecialist]) &&
+          (candidate.status === "Draft" || candidate.status === "DocumentsPending") &&
+          <CandidateEditor key={`${candidate.id}-${candidate.updatedAtUtc}`} candidate={candidate} onSaved={setCandidate} />}
 
         {candidate && (
           <Card

@@ -36,6 +36,10 @@ export async function createCandidate(
   return response.data;
 }
 
+export async function updateCandidate(id: string, request: CreateCandidateRequest): Promise<void> {
+  await candidateApi.put(`/api/candidates/${id}`, request);
+}
+
 export async function uploadCandidateCv(
   candidateId: string,
   file: File,

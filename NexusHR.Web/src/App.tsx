@@ -38,7 +38,7 @@ function App() {
 
       <Routes>
         <Route path="/onboardings" element={<RoleGuard allowedRoles={OnboardingReaderRoles}><OnboardingPage key="list" /></RoleGuard>} />
-        <Route path="/onboardings/:id" element={<RoleGuard allowedRoles={OnboardingReaderRoles}><OnboardingPage key={window.location.pathname} /></RoleGuard>} />
+        <Route path="/onboardings/:id" element={<RoleGuard allowedRoles={OnboardingReaderRoles}><OnboardingPage key="detail" /></RoleGuard>} />
         <Route
           path="/"
           element={

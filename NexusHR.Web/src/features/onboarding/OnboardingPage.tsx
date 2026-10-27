@@ -43,7 +43,7 @@ export default function OnboardingPage() {
     finally { setBusy(false); }
   }
   return <Container maxWidth="lg" sx={{ py: 4 }}>
-    <Stack direction="row" flexWrap="wrap" gap={2} justifyContent="space-between" mb={3}>
+    <Stack direction="row" sx={{ flexWrap: "wrap", gap: 2, justifyContent: "space-between", mb: 3 }}>
       <Typography variant="h4">Çalışan onboarding</Typography>
       <Button onClick={() => setRevision(value => value + 1)} disabled={busy}>Yenile</Button>
       {id && <Button component={RouterLink} to="/onboardings">Tüm kayıtlar</Button>}
@@ -55,7 +55,7 @@ export default function OnboardingPage() {
       const tasks = item.tasks ?? [];
       const done = tasks.filter(task => task.status === "Completed").length;
       return <Card key={item.id} variant="outlined"><CardContent>
-        <Stack direction="row" flexWrap="wrap" gap={2} alignItems="center">
+        <Stack direction="row" sx={{ flexWrap: "wrap", gap: 2, alignItems: "center" }}>
           <Typography variant="h6">{item.fullName ?? `${item.firstName} ${item.lastName}`}</Typography>
           <Chip label={item.status} color={item.status === "Completed" ? "success" : "default"} />
         </Stack>
@@ -67,7 +67,7 @@ export default function OnboardingPage() {
           <Typography sx={{ mt: 2 }}>{done} / {tasks.length} görev tamamlandı</Typography>
           <LinearProgress variant="determinate" value={tasks.length ? done / tasks.length * 100 : 0} sx={{ my: 2 }} />
           <Stack spacing={2}>{tasks.map(task => <Box key={task.id} sx={{ border: 1, borderColor: "divider", p: 2, borderRadius: 1 }}>
-            <Typography fontWeight={600}>{task.title}</Typography>
+            <Typography sx={{ fontWeight: 600 }}>{task.title}</Typography>
             <Typography variant="body2">{task.assignedDepartment} · {task.dueDate} · {task.status}</Typography>
             {canEdit && item.status !== "Completed" && item.status !== "Cancelled" && <>
               {task.status === "Pending" && <Button disabled={busy} onClick={() => void run(() => updateTask(item.id, task.id, "InProgress"))}>Başlat</Button>}
