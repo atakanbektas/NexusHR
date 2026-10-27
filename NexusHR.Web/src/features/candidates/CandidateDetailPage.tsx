@@ -1,3 +1,4 @@
+import CvAnalysisPanel from "./CvAnalysisPanel";
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -11,6 +12,7 @@ import {
   Divider,
   Stack,
   Typography,
+  Tabs, Tab,
 } from "@mui/material";
 import {
   ArrowBack,
@@ -110,6 +112,7 @@ function getHiringStatusSeverity(
 
 export default function CandidateDetailPage() {
   const { id } = useParams();
+  const [detailTab, setDetailTab] = useState(0);
 
   const canDownloadCv =
     hasAnyRole(CandidateCvReaderRoles);
@@ -316,11 +319,13 @@ export default function CandidateDetailPage() {
           </Alert>
         )}
 
-        {candidate && hasAnyRole([NexusHrRoles.HrSpecialist]) &&
+        {candidate && canDownloadCv && <Tabs value={detailTab} onChange={(_, value: number) => setDetailTab(value)} aria-label="Aday detay sekmeleri"><Tab label="Genel bilgiler" /><Tab label="CV Analizi" /></Tabs>}
+        {candidate && detailTab === 1 && canDownloadCv && <CvAnalysisPanel candidateId={candidate.id} />}
+        {candidate && detailTab === 0 && hasAnyRole([NexusHrRoles.HrSpecialist]) &&
           (candidate.status === "Draft" || candidate.status === "DocumentsPending") &&
           <CandidateEditor key={`${candidate.id}-${candidate.updatedAtUtc}`} candidate={candidate} onSaved={setCandidate} />}
 
-        {candidate && (
+        {candidate && detailTab === 0 && (
           <Card
             elevation={0}
             sx={{
