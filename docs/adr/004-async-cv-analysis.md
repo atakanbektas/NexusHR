@@ -19,4 +19,3 @@ Existing deterministic contact extraction reuses the paged text extractor. Route
 Feature enablement and permission to process externally are separate switches, and each external run requires an acknowledgement. The only production adapter is OpenAI; fake provider and authentication exist only in the integration test assembly. Provider options have no model/pricing/key defaults that could silently initiate paid work.
 
 Consequences: one extra durable job module in Candidate; conservative unknown charges can consume a whole daily budget; global budget writes serialize briefly; paid quality evaluation, data retention decisions and operational reconciliation remain deployment gates. See [runbook](../ai-cv-analysis.md).
-

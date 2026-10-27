@@ -120,4 +120,3 @@ export default function CvAnalysisPanel({ candidateId }: { candidateId: string }
     </>}
   </Stack></CardContent></Card>;
 }
-
