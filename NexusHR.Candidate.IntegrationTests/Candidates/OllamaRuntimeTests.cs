@@ -42,6 +42,11 @@ public sealed class OllamaRuntimeTests
     {
         await using var server = new ContainerBuilder("ollama/ollama:0.40.12@sha256:20d1bbfbabe1c97ba4b16301f08a20d8484bcf77047742a3cb71c613d8e12d0b")
             .WithEnvironment("OLLAMA_NO_CLOUD", "1").WithPortBinding(11434, true)
+            .WithCreateParameterModifier(parameters =>
+            {
+                foreach (var binding in parameters.HostConfig.PortBindings["11434/tcp"])
+                    binding.HostIP = "127.0.0.1";
+            })
             .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(11434)).Build();
         await server.StartAsync();
         var options = Options; options.Ollama.BaseUrl = $"http://{server.Hostname}:{server.GetMappedPublicPort(11434)}";
