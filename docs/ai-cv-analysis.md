@@ -54,6 +54,8 @@ Six bytes per code unit covers JSON escaping; 8192 covers prompt/schema/page str
 
 Model/reservation increases after a restart fail old queued jobs before dispatch until explicitly retried with a fresh reservation. No expensive-model fallback is configured. Provider-side project budgets are recommended as a separate control, never as the sole application limit.
 
+Reservations also expire across UTC days: overnight queued jobs fail before dispatch with `AI.ReservationExpiredRetryRequired` and release the old reservation. An explicit retry obtains a fresh current-day reservation. This prevents an outage backlog from spending several days of caps in one day.
+
 ## Privacy and provider contract
 
 The OpenAI adapter uses HTTPS Responses `/v1/responses`, `store:false`, strict JSON Schema and a maximum output budget. It sends extracted text only; no PDF/file upload, MinIO URL, tool execution or web access. Known contact fields and email/phone patterns are blanked while preserving offsets. This is best-effort minimization, not anonymization: CV text can still contain personal information.

@@ -18,8 +18,8 @@ Date: 2026-10-27. Branch: `feature/ai-cv-analysis`, based on main `9fd123d`.
 | Check | Result |
 |---|---|
 | .NET 10 Release solution build | Passed, 0 warnings / 0 errors |
-| Release solution tests | 111 passed, 0 failed; 1 browser-host test explicitly deferred to its dedicated run |
-| Additional final PostgreSQL unique-index/xmin regression | 1 passed after adding the final database constraint test |
+| Release solution tests | 111 passed, 0 failed before the two final added regressions; 1 browser-host test explicitly deferred to its dedicated run |
+| Final AI PostgreSQL/RabbitMQ/MinIO reliability suite | 20 passed, including added unique-index/xmin and overnight budget regressions |
 | Dedicated Release AI browser-host test | 1 passed; real API/PostgreSQL/RabbitMQ/MinIO/PDF, deterministic fake provider |
 | Normal Playwright suite | 3 passed: feature-off behaviour, complete existing business workflow, auditor upload denial; isolated fake-host case explicitly deferred |
 | Isolated fake-host Playwright case | Passed through the dedicated backend fixture; analysis, evidence, HR review and persistence after reload |
@@ -31,7 +31,7 @@ Date: 2026-10-27. Branch: `feature/ai-cv-analysis`, based on main `9fd123d`.
 | Final Candidate API / frontend Docker build and startup | Passed; both healthy; existing infrastructure/data/volumes retained |
 | git diff --check; tracked log/tool/result/secret-pattern checks | Passed; local tools/results excluded |
 
-There are 112 distinct non-browser backend test cases after the final added constraint regression, plus the dedicated browser-host test. The dedicated browser-host test is counted separately from the normal solution suite, and its underlying Playwright case is the same scenario, not a second independent backend coverage claim.
+There are 113 distinct non-browser backend test cases after the final added constraint and overnight-budget regressions, plus the dedicated browser-host test. The dedicated browser-host test is counted separately from the normal solution suite, and its underlying Playwright case is the same scenario, not a second independent backend coverage claim.
 
 An initial concurrent container-build/test run timed out in the existing Onboarding messaging test and exposed a recovery test setup race. The latter now waits for Inbox delivery before simulating a crash. Candidate container test classes are serialized to reduce resource contention. Subsequent complete Release suite passed. A simultaneous Windows build/test invocation also hit a locked test assembly; sequential execution passed. These failed attempts were not counted as passes.
 

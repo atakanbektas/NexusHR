@@ -279,6 +279,30 @@ public sealed class CvAnalysisIntegrationTests(AiFixture f) : IClassFixture<AiFi
         await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => staleDb.SaveChangesAsync());
     }
 
+    [Fact]
+    public async Task OvernightQueueCannotSpendAnOldReservationWithoutReservingTodaysBudget()
+    {
+        var (candidate, document) = await f.SeedAsync(); using var client = f.Client();
+        var yesterday = DateTime.UtcNow.AddDays(-1);
+        var entity = new CvAnalysis(candidate, document, "test-hr", Guid.NewGuid().ToString(), f.Options.Model,
+            "OpenAI", f.Options.Reservation, yesterday); entity.MarkDelivered();
+        await using (var scope = f.Scopes.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<CandidateDbContext>();
+            db.Add(entity); db.Add(new AiDailyBudget { Day = DateOnly.FromDateTime(yesterday), CommittedUsd = f.Options.Reservation });
+            await db.SaveChangesAsync();
+        }
+        var before = f.Provider.Calls; await Process(); var run = await Get(client, candidate, entity.Id);
+        Assert.Equal("Failed", run.Status); Assert.Equal("AI.ReservationExpiredRetryRequired", run.ErrorCode);
+        Assert.Equal(before, f.Provider.Calls); Assert.Equal(0m, Assert.Single(run.Attempts).UsageCostUsd);
+        client.DefaultRequestHeaders.TryAddWithoutValidation("If-Match", $"\"{run.Version}\"");
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"{Path(candidate)}/{run.Id}/retry", new { acknowledgePossibleDuplicateCharge = false })).StatusCode);
+        await Process(); run = await Get(client, candidate, run.Id); Assert.Equal("Succeeded", run.Status);
+        await using var verification = f.Scopes.CreateAsyncScope(); var context = verification.ServiceProvider.GetRequiredService<CandidateDbContext>();
+        Assert.Equal(0m, (await context.Set<AiDailyBudget>().SingleAsync(x => x.Day == DateOnly.FromDateTime(yesterday))).CommittedUsd);
+        Assert.Equal(DateOnly.FromDateTime(DateTime.UtcNow), (await context.Set<CvAnalysis>().SingleAsync(x => x.Id == run.Id)).ReservationDay);
+    }
+
     private async Task Process() => Assert.True(await CvAnalysisWorker.ProcessNextAsync(f.Scopes, f.Options, default));
     private Task Deliver(Guid id) => f.WaitAsync(db => db.Set<CvAnalysis>().AnyAsync(x => x.Id == id && x.Delivered));
     private static string Path(Guid candidate) => $"/api/candidates/{candidate}/cv-analyses";

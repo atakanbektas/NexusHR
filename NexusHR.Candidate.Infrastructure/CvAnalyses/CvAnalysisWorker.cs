@@ -98,6 +98,10 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
                     cancelled.Outcome = "Cancelled"; cancelled.UsageCostUsd = 0; cancelled.FinishedAtUtc = DateTime.UtcNow;
                     await CvAnalysisStore.SettleAsync(db, run, 0, ct); await db.SaveChangesAsync(ct); await tx.CommitAsync(ct); return true;
                 }
+                // Queues can survive an overnight outage. Never spend yesterday's
+                // reservation against today's provider usage without a fresh budget check.
+                if (run.ReservationDay != DateOnly.FromDateTime(DateTime.UtcNow))
+                    throw new CvProviderException("AI.ReservationExpiredRetryRequired");
                 var hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
                 document.RecordContentHash(hash); // Lazy additive backfill for existing immutable CVs.
                 run.SetHash(lease, hash);
