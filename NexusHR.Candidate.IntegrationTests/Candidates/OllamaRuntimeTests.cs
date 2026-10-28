@@ -44,7 +44,10 @@ public sealed class OllamaRuntimeTests
             .WithEnvironment("OLLAMA_NO_CLOUD", "1").WithPortBinding(11434, true)
             .WithCreateParameterModifier(parameters =>
             {
-                foreach (var binding in parameters.HostConfig.PortBindings["11434/tcp"])
+                var ports = parameters.HostConfig?.PortBindings;
+                if (ports is null || !ports.TryGetValue("11434/tcp", out var bindings) || bindings is null)
+                    throw new InvalidOperationException("The fault-test container requires an explicit loopback binding.");
+                foreach (var binding in bindings)
                     binding.HostIP = "127.0.0.1";
             })
             .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(11434)).Build();
