@@ -38,6 +38,29 @@ public sealed class OllamaRuntimeTests
     }
 
     [OllamaFact]
+    public async Task RealModelProducesGroundedEnglishFacts()
+    {
+        var options = Options; options.Validate();
+        using var http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { BaseAddress = new Uri(options.Ollama.BaseUrl), Timeout = TimeSpan.FromSeconds(240) };
+        var provider = new OllamaCvAnalysisProvider(http, options);
+        var pages = new CvTextPage[] { new(1, """
+            Entirely synthetic test CV, not a real person.
+            Professional summary: Software developer building tested enterprise web applications.
+            Technical skills: C#, .NET, ASP.NET Core, SQL Server, PostgreSQL, Docker, React, TypeScript, RabbitMQ, Clean Architecture.
+            Employment: 2022-2025 Synthetic Software Ltd, software developer.
+            Education: 2018-2022 Example Technical University, Computer Engineering degree.
+            Certification: 2024 Synthetic Docker Fundamentals Certificate.
+            Languages: English B2, German A2.
+            """) };
+        var result = await provider.AnalyzeAsync(pages, options.Model, default);
+        EvidenceValidator.Validate(result.Result, pages);
+        Assert.NotEmpty(result.Result.Facts);
+        Assert.Contains(result.Result.Facts, x => x.Category == "skill" && x.Value.Contains("C#"));
+        Assert.Contains(result.Result.Facts, x => x.Category == "education");
+        Assert.False(provider.RequiresExternalProcessing); Assert.Equal(0, options.Reservation);
+    }
+
+    [OllamaFact]
     public async Task ActualContainerWithoutModelAndStoppedContainerAreNotReady()
     {
         await using var server = new ContainerBuilder("ollama/ollama:0.40.12@sha256:20d1bbfbabe1c97ba4b16301f08a20d8484bcf77047742a3cb71c613d8e12d0b")

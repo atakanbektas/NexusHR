@@ -16,7 +16,9 @@ type History = {
   settings: { enabled: boolean; externalProcessingAllowed: boolean; provider: string; maxReservationUsd: number; ready?: boolean; unavailableCode?: string };
   documentId: string | null; items: Run[]; page: number; totalCount: number;
 };
-const labels: Record<string, string> = { Queued: "Kuyrukta", Running: "Çalışıyor", Succeeded: "Tamamlandı", Failed: "Başarısız", Refused: "Sağlayıcı reddetti", OutcomeUnknown: "Çağrı sonucu belirsiz", Cancelled: "İptal edildi" };
+const labels: Record<string, string> = { Queued: "Kuyrukta", Running: "Çalışıyor", Succeeded: "Tamamlandı", Failed: "Başarısız", Refused: "Sağlayıcı reddetti", OutcomeUnknown: "Çağrı sonucu belirsiz", Cancelled: "İptal edildi", NoFindings: "Doğrulanmış sonuç yok" };
+function legacyEmpty(run: Run) { return run.status === "Succeeded" && (!run.result || run.result.facts.length === 0); }
+function runLabel(run: Run) { return legacyEmpty(run) ? "Eski boş analiz" : labels[run.status] ?? run.status; }
 const categories: Record<string, string> = { summary: "Profesyonel özet", skill: "Beceri", employment: "İş deneyimi", education: "Eğitim", certification: "Sertifika", language: "Dil" };
 const explanations: Record<string, string> = {
   "AI.ModelNotReady": "Seçilen yerel model henüz indirilmemiş veya hazır değil. Model kurulumunu kontrol edin.",
@@ -30,6 +32,10 @@ const explanations: Record<string, string> = {
   "AI.UserQuotaExceeded": "Günlük analiz istek kotanız doldu.",
   "AI.Disabled": "AI analizi bu ortamda kapalı.",
   "AI.LocalModelRequired": "Yalnızca indirilmiş yerel modeller kullanılabilir; bulut modeline CV gönderilmez.",
+  "AI.NoReadableText": "PDF’den okunabilir metin çıkarılamadı. Görsel/tarama tabanlıysa OCR gerekir; bu sürümde OCR desteklenmiyor. Metin içeren PDF kullanın veya manuel inceleme yapın.",
+  "AI.NoAnalyzableText": "İletişim bilgileri gizlendikten sonra analiz edilebilir metin kalmadı. Model çağrılmadı. Kayıtlı PDF’nin mesleki bilgi içerdiğini kontrol edin; bilgiler uydurulmaz.",
+  "AI.NoSupportedFacts": "Model kaynakla doğrulanabilir profesyonel bilgi üretmedi. Bu, CV’nizde bilgi olmadığı anlamına gelmez. Yeniden deneyebilir veya manuel inceleme yapabilirsiniz.",
+  "AI.EmptyResultCannotBeReviewed": "Boş analiz onaylanamaz. Mesleki bilgi içeren CV ile yeni bir analiz başlatın.",
 };
 function explain(code: string) { return explanations[code] ?? `İşlem tamamlanamadı (${code}). Güncel kaydı kontrol edin.`; }
 
@@ -99,7 +105,7 @@ export default function CvAnalysisPanel({ candidateId }: { candidateId: string }
       {history.items.length === 0 && <Typography>Henüz analiz yok.</Typography>}
       <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }} useFlexGap>
         {history.items.map(run => <Button key={run.id} variant={selected?.id === run.id ? "contained" : "outlined"} onClick={() => { setSelectedId(run.id); setNotes(""); setAcknowledgeUnknown(false); }}>
-          {new Date(run.createdAtUtc).toLocaleString("tr-TR")} — {labels[run.status] ?? run.status}
+          {new Date(run.createdAtUtc).toLocaleString("tr-TR")} — {runLabel(run)}
         </Button>)}
       </Stack>
       <Stack direction="row" spacing={1}>
@@ -108,14 +114,14 @@ export default function CvAnalysisPanel({ candidateId }: { candidateId: string }
         <Button disabled={page * 20 >= history.totalCount || busy} onClick={() => { setPage(page + 1); setSelectedId(null); }}>Sonraki</Button>
       </Stack>
       {selected && <Box><Stack spacing={2}>
-        <Chip label={labels[selected.status] ?? selected.status} sx={{ alignSelf: "start" }} />
+        <Chip label={runLabel(selected)} sx={{ alignSelf: "start" }} />
         <Typography variant="body2">Model: {selected.model}</Typography>
         <Typography variant="body2">Analiz sağlayıcısı: {selected.provider === "Ollama" ? "Yerel AI — Ollama" : selected.provider ?? "OpenAI"}</Typography>
         {selected.errorCode && <Alert severity="warning">{explain(selected.errorCode)}</Alert>}
         {selected.cancellationRequested && <Alert severity="info">{selected.provider === "Ollama" ? "İptal istendi. Harici API ücreti yoktur." : "İptal istendi. Gönderilmiş çağrı ücretlenebilir."}</Alert>}
         {selected.status === "OutcomeUnknown" && <Alert severity="warning">Sağlayıcı çağrısı ücretlenmiş olabilir. Otomatik tekrar yapılmadı.</Alert>}
-        {selected.result?.warnings.map((warning, i) => <Alert key={i} severity="warning">{warning}</Alert>)}
-        {selected.result?.facts.length === 0 && <Typography>Desteklenen profesyonel bilgi bulunamadı.</Typography>}
+        {legacyEmpty(selected) && <Alert severity="warning">Eski sürüm boş yanıtı başarılı kaydetmiş. Bu kayıt kullanılabilir bir analiz değildir ve onaylanamaz. Aynı CV için Analiz başlat ile yeni kayıt oluşturabilirsiniz.</Alert>}
+        {!legacyEmpty(selected) && selected.result?.warnings.map((warning, i) => <Alert key={i} severity="warning">{warning}</Alert>)}
         {selected.result && Object.entries(categories).map(([category, label]) => <Stack key={category} spacing={1}>
           <Typography variant="h6">{label === "Beceri" ? "Teknik beceriler" : label === "Dil" ? "Yabancı diller" : label}</Typography>
           {!selected.result!.facts.some(fact => fact.category === category) && <Typography color="text.secondary">Bu alan için doğrulanmış kaynak bilgisi bulunamadı.</Typography>}
@@ -125,13 +131,13 @@ export default function CvAnalysisPanel({ candidateId }: { candidateId: string }
           <Typography component="blockquote" sx={{ whiteSpace: "pre-wrap", m: 0 }}>“{fact.quote}”</Typography>
           </Box>)}
         </Stack>)}
-        {selected.attempts.map(attempt => <Typography key={attempt.number} variant="body2">Deneme {attempt.number}: {attempt.outcome}; maliyet {attempt.usageCostUsd === null ? "belirsiz — rezervasyon korunuyor" : `${attempt.usageCostUsd.toFixed(6)} USD`}; fiyat sürümü {attempt.priceVersion}</Typography>)}
+        {selected.attempts.map(attempt => <Typography key={attempt.number} variant="body2">Deneme {attempt.number}: {legacyEmpty(selected) && attempt.outcome === "Succeeded" ? "Eski boş sonuç" : labels[attempt.outcome] ?? attempt.outcome}; maliyet {attempt.usageCostUsd === null ? "belirsiz — rezervasyon korunuyor" : `${attempt.usageCostUsd.toFixed(6)} USD`}; fiyat sürümü {attempt.priceVersion}</Typography>)}
         {canEdit && (selected.status === "Queued" || selected.status === "Running") && <Button disabled={busy || selected.cancellationRequested} onClick={() => void act(() => candidateApi.post(`${base}/${selected.id}/cancel`, {}, { headers }))}>Analizi iptal et</Button>}
-        {canEdit && (selected.status === "Failed" || selected.status === "OutcomeUnknown") && <>
+        {canEdit && (selected.status === "Failed" || selected.status === "NoFindings" || selected.status === "OutcomeUnknown") && <>
           {selected.status === "OutcomeUnknown" && <FormControlLabel control={<Checkbox checked={acknowledgeUnknown} onChange={e => setAcknowledgeUnknown(e.target.checked)} />} label="Tekrar denemenin ek ücret oluşturabileceğini kabul ediyorum." />}
           <Button disabled={busy || !history.settings.enabled || history.settings.ready === false || (selected.status === "OutcomeUnknown" && !acknowledgeUnknown)} onClick={() => void act(() => candidateApi.post(`${base}/${selected.id}/retry`, { acknowledgePossibleDuplicateCharge: acknowledgeUnknown }, { headers }))}>Yeniden analiz et</Button>
         </>}
-        {canEdit && selected.status === "Succeeded" && <>
+        {canEdit && selected.status === "Succeeded" && !legacyEmpty(selected) && <>
           <TextField label="İnsan incelemesi / düzeltmeler" multiline minRows={3} value={notes} onChange={e => setNotes(e.target.value)} slotProps={{ htmlInput: { maxLength: 4000 } }} />
           <Stack direction="row" spacing={1}>
             {[["approve", "Onayla"], ["reject", "Reddet"], ["correct", "Düzeltme kaydet"]].map(([decision, label]) => <Button key={decision} disabled={busy || (decision === "correct" && !notes.trim())} onClick={() => void act(async () => { await candidateApi.put(`${base}/${selected.id}/review`, { decision, notes }, { headers }); setNotes(""); })}>{label}</Button>)}
