@@ -1,0 +1,53 @@
+name: Ollama real-model validation (manual)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ollama-real-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  local-model:
+    # Explicit manual workload, not part of the required normal verify job.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      RUN_OLLAMA_TESTS: '1'
+      OLLAMA_TEST_URL: http://127.0.0.1:11435
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+      - name: Check runner resources
+        run: |
+          docker info --format 'Memory={{.MemTotal}} CPUs={{.NCPU}}'
+          df -h .
+      - name: Start application and download the model into its named volume
+        run: docker compose -f docker-compose.yml -f docker-compose.ai.yml -f docker-compose.ai-test.yml --profile ai up -d --build --wait --wait-timeout 1200
+      - name: Native real-model, missing-model, stopped-container and cancellation checks
+        run: dotnet test NexusHR.Candidate.IntegrationTests --configuration Release --filter FullyQualifiedName~OllamaRuntimeTests --logger trx --results-directory TestResults
+      - name: Synthetic Turkish PDF and real application browser workflow
+        working-directory: NexusHR.Web
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run test:e2e -- ollama-real.spec.ts
+      - name: Service diagnostics
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.ai.yml --profile ai logs --no-color > ollama-compose.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ollama-real-verification
+          path: |
+            TestResults
+            NexusHR.Web/test-results
+            NexusHR.Web/playwright-report
+            ollama-compose.log
+      - name: Stop ephemeral runner containers, retain volumes
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.ai.yml -f docker-compose.ai-test.yml --profile ai down
