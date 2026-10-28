@@ -171,11 +171,20 @@ public sealed class CvAnalysisIntegrationTests(AiFixture f) : IClassFixture<AiFi
     [Fact]
     public async Task ExtractionPreservesContactBehaviourAndAddsStableEvidencePages()
     {
-        await using var scope = f.Scopes.CreateAsyncScope();
-        var draft = await scope.ServiceProvider.GetRequiredService<ICvInformationExtractor>().ExtractAsync(AiFixture.Pdf, default);
-        var pages = await scope.ServiceProvider.GetRequiredService<ICvTextExtractor>().ExtractPagesAsync(AiFixture.Pdf, default);
-        Assert.True(draft.Email == "synthetic@example.test", pages[0].Text);
-        Assert.Equal(1, Assert.Single(pages).Number); Assert.Contains("C# PostgreSQL", pages[0].Text);
+        var originalCulture = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.GetCultureInfo("tr-TR");
+            await using var scope = f.Scopes.CreateAsyncScope();
+            var extractor = scope.ServiceProvider.GetRequiredService<ICvInformationExtractor>();
+            var draft = await extractor.ExtractAsync(AiFixture.Pdf, default);
+            var pages = await scope.ServiceProvider.GetRequiredService<ICvTextExtractor>().ExtractPagesAsync(AiFixture.Pdf, default);
+            Assert.True(draft.Email == "synthetic@example.test", pages[0].Text);
+            Assert.Equal(1, Assert.Single(pages).Number); Assert.Contains("C# PostgreSQL", pages[0].Text);
+            System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.GetCultureInfo("en-US");
+            Assert.Equal(draft, await extractor.ExtractAsync(AiFixture.Pdf, default));
+        }
+        finally { System.Globalization.CultureInfo.CurrentCulture = originalCulture; }
     }
 
     [Fact]
