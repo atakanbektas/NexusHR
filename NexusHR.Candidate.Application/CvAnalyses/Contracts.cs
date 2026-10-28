@@ -2,7 +2,18 @@ using NexusHR.Candidate.Domain.CvAnalyses;
 
 namespace NexusHR.Candidate.Application.CvAnalyses;
 
-public sealed record CvTextPage(int Number, string Text);
+public sealed record CvTextPage(int Number, string Text)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int ImageCount { get; init; }
+}
+public sealed class CvTextUnavailableException(int pages, int imagePages, int characters) : Exception(
+    "PDF’den okunabilir metin çıkarılamadı. Görsel/tarama tabanlı PDF için OCR gerekir; bu sürümde OCR desteklenmiyor.")
+{
+    public int PageCount { get; } = pages;
+    public int ImagePageCount { get; } = imagePages;
+    public int CharacterCount { get; } = characters;
+}
 public interface ICvTextExtractor
 {
     Task<IReadOnlyList<CvTextPage>> ExtractPagesAsync(byte[] pdf, CancellationToken ct);

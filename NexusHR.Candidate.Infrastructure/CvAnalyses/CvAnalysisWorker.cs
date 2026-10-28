@@ -1,6 +1,5 @@
 using System.Security.Cryptography;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -85,9 +84,14 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
             var bytes = await scope.ServiceProvider.GetRequiredService<ICandidateDocumentStorage>().DownloadAsync(document.ObjectName, ct);
             var pages = await scope.ServiceProvider.GetRequiredService<ICvTextExtractor>().ExtractPagesAsync(bytes, ct);
             if (pages.Sum(x => (long)x.Text.Length) > options.MaxInputCharacters) throw new InvalidDataException("AI input limit exceeded.");
-            // Best-effort contact minimization; not a claim of anonymization. Preserve offsets by replacing with spaces.
             var candidate = await db.Candidates.SingleAsync(x => x.Id == run.CandidateId, ct);
-            pages = pages.Select(p => new CvTextPage(p.Number, Redact(p.Text, candidate.FirstName, candidate.LastName, candidate.Email, candidate.PhoneNumber))).ToArray();
+            var input = CvAnalysisInput.Prepare(pages, candidate.FirstName, candidate.LastName, candidate.Email, candidate.PhoneNumber);
+            var metricsLog = scope.ServiceProvider.GetRequiredService<ILogger<CvAnalysisWorker>>();
+            foreach (var page in input.Metrics)
+                metricsLog.LogInformation("CV input page {Page}: rawCharacters={RawCharacters}, rawReadable={RawReadable}, minimizedCharacters={MinimizedCharacters}, minimizedReadable={MinimizedReadable}, images={Images}",
+                    page.Page, page.RawCharacters, page.RawReadableCharacters, page.MinimizedCharacters, page.MinimizedReadableCharacters, page.Images);
+            if (input.Pages.Count == 0) throw new CvProviderException("AI.NoAnalyzableText");
+            pages = input.Pages;
             await using (var tx = await db.Database.BeginTransactionAsync(ct))
             {
                 await CvAnalysisStore.LockAsync(db, ct); await db.Entry(run).ReloadAsync(ct);
@@ -117,12 +121,35 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
             finally { await deadline.CancelAsync(); await monitor; }
             if (response.InputTokens < 0 || response.OutputTokens < 0) throw new InvalidDataException("Invalid usage.");
             EvidenceValidator.Validate(response.Result, pages);
-            status = CvAnalysisStatus.Succeeded;
+            metricsLog.LogInformation("CV output: facts={Facts}, warnings={Warnings}, inputTokens={InputTokens}, outputTokens={OutputTokens}",
+                response.Result.Facts.Count, response.Result.Warnings.Count, response.InputTokens, response.OutputTokens);
+            if (response.Result.Facts.Count == 0)
+            {
+                status = CvAnalysisStatus.NoFindings;
+                error = "AI.NoSupportedFacts";
+            }
+            else
+            {
+                if (input.ImagePages > 0 || input.ExcludedPages > 0)
+                    response = response with { Result = response.Result with { Warnings = new[] {
+                        "Yalnızca okunabilir metin içeren sayfalar analiz edildi. Görsel içerik yorumlanmadı; tarama sayfaları için OCR gerekebilir."
+                    }.Concat(response.Result.Warnings).Distinct().Take(20).ToArray() } };
+                EvidenceValidator.Validate(response.Result, pages);
+                status = CvAnalysisStatus.Succeeded;
+            }
+        }
+        catch (CvTextUnavailableException ex)
+        {
+            status = CvAnalysisStatus.Failed; error = "AI.NoReadableText";
+            await using var scope = scopes.CreateAsyncScope();
+            scope.ServiceProvider.GetRequiredService<ILogger<CvAnalysisWorker>>().LogInformation(
+                "CV extraction unavailable: pages={Pages}, imagePages={ImagePages}, characters={Characters}", ex.PageCount, ex.ImagePageCount, ex.CharacterCount);
         }
         catch (CvProviderException ex)
         {
             error = ex.Code;
-            status = ex.Code == "AI.Refused" ? CvAnalysisStatus.Refused : ex.Code == "AI.OutcomeUnknown" ? CvAnalysisStatus.OutcomeUnknown : CvAnalysisStatus.Failed;
+            status = ex.Code == "AI.NoAnalyzableText" ? CvAnalysisStatus.NoFindings : ex.Code == "AI.Refused" ? CvAnalysisStatus.Refused :
+                ex.Code == "AI.OutcomeUnknown" ? CvAnalysisStatus.OutcomeUnknown : CvAnalysisStatus.Failed;
             if (ex.SafeToRetry) retry = ex;
         }
         catch (InvalidDataException) { error = "AI.InvalidInputOrEvidence"; }
@@ -160,14 +187,6 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
             await db.SaveChangesAsync(finishCt); await tx.CommitAsync(finishCt);
         }
         return true;
-    }
-
-    private static string Redact(string text, params string[] identifiers)
-    {
-        foreach (var value in identifiers.Where(x => x.Length >= 2).OrderByDescending(x => x.Length))
-            text = Regex.Replace(text, Regex.Escape(value), m => new string(' ', m.Length), RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
-        text = Regex.Replace(text, @"[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}|(?:\+?\d[\d ()-]{8,}\d)", m => new string(' ', m.Length), RegexOptions.None, TimeSpan.FromSeconds(1));
-        return text;
     }
 
     private static async Task MonitorCancellationAsync(IServiceScopeFactory scopes, Guid id, Guid lease, CancellationTokenSource deadline)

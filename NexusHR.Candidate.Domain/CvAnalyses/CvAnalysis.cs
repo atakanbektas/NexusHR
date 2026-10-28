@@ -1,6 +1,6 @@
 namespace NexusHR.Candidate.Domain.CvAnalyses;
 
-public enum CvAnalysisStatus { Queued, Running, Succeeded, Failed, Refused, OutcomeUnknown, Cancelled }
+public enum CvAnalysisStatus { Queued, Running, Succeeded, Failed, Refused, OutcomeUnknown, Cancelled, NoFindings }
 
 public sealed class CvAnalysis
 {
@@ -63,7 +63,7 @@ public sealed class CvAnalysis
     }
     public void Retry(decimal reservation, DateTime now, TimeSpan delay, bool acknowledgeUnknown)
     {
-        if (Status != CvAnalysisStatus.Failed && !(Status == CvAnalysisStatus.OutcomeUnknown && acknowledgeUnknown))
+        if (Status != CvAnalysisStatus.Failed && Status != CvAnalysisStatus.NoFindings && !(Status == CvAnalysisStatus.OutcomeUnknown && acknowledgeUnknown))
             throw new InvalidOperationException("Analysis cannot be retried without resolving its outcome.");
         Status = CvAnalysisStatus.Queued; CancellationRequested = false; ErrorCode = null; FinishedAtUtc = null;
         ReservedUsd = reservation; ReservationDay = DateOnly.FromDateTime(now); NextAttemptAtUtc = now + delay;

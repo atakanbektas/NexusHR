@@ -1,5 +1,6 @@
 ﻿using FluentValidation;
 using MediatR;
+using NexusHR.Candidate.Application.CvAnalyses;
 using NexusHR.Candidate.Application.Abstractions.Documents;
 
 namespace NexusHR.Candidate.Application.Candidates.ExtractCandidateFromCv;
@@ -56,6 +57,10 @@ internal sealed class ExtractCandidateFromCvCommandHandler(
             return ExtractCandidateFromCvResponse.Failure(
                 "Candidate.InvalidCvFile",
                 exception.Message);
+        }
+        catch (CvTextUnavailableException exception)
+        {
+            return ExtractCandidateFromCvResponse.Failure("Candidate.InvalidCvFile", exception.Message);
         }
     }
 }

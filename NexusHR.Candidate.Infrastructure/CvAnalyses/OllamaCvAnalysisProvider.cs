@@ -61,9 +61,10 @@ internal sealed class OllamaCvAnalysisProvider(HttpClient http, CvAnalysisOption
     public async Task<CvProviderResponse> AnalyzeAsync(IReadOnlyList<CvTextPage> pages, string model, CancellationToken ct)
     {
         if (!options.Enabled || !options.IsLocal) throw new CvProviderException("AI.Disabled");
+        if (!pages.Any(CvAnalysisInput.HasReadableText)) throw new CvProviderException("AI.NoAnalyzableText");
         var digest = await ModelDigestAsync(model, ct);
         var system = Instructions + Schema.GetRawText();
-        var input = string.Join("\n\n", pages.Select(p => $"PAGE {p.Number}\n{p.Text}"));
+        var input = string.Join("\n\n", pages.Where(CvAnalysisInput.HasReadableText).Select(p => $"PAGE {p.Number}\n{p.Text}"));
         // A conservative byte/token bound avoids silently truncating a long CV at the context limit.
         if (Encoding.UTF8.GetByteCount(system) + Encoding.UTF8.GetByteCount(input) + 1024 + options.MaxOutputTokens > options.Ollama.ContextLength)
             throw new CvProviderException("AI.InputTooLarge");

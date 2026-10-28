@@ -371,6 +371,65 @@ public sealed class CvAnalysisIntegrationTests(AiFixture f) : IClassFixture<AiFi
         finally { f.Options.Provider = provider; }
     }
 
+    [Fact]
+    public async Task ContactOnlyPdfStopsBeforeModelCallAndIsNotSuccessful()
+    {
+        var provider = f.Options.Provider; f.Options.Provider = "Ollama";
+        try
+        {
+            var (candidate, document) = await f.SeedAsync(AiFixture.ContactOnlyPdf, "Ada", "Lovelace");
+            using var client = f.Client(); var before = f.Provider.Calls; var run = await Create(client, candidate, document);
+            await Deliver(run.Id); await Process(); run = await Get(client, candidate, run.Id);
+            Assert.Equal("NoFindings", run.Status); Assert.Equal("AI.NoAnalyzableText", run.ErrorCode);
+            Assert.Equal(before, f.Provider.Calls); Assert.Null(run.Result); Assert.Equal(0m, Assert.Single(run.Attempts).UsageCostUsd);
+            await using var scope = f.Scopes.CreateAsyncScope(); var db = scope.ServiceProvider.GetRequiredService<CandidateDbContext>();
+            Assert.Null((await db.Set<CvAnalysisAttempt>().SingleAsync(x => x.AnalysisId == run.Id)).DispatchedAtUtc);
+        }
+        finally { f.Options.Provider = provider; }
+    }
+
+    [Fact]
+    public async Task ReadableProfessionalCvWithEmptyModelFactsIsNoFindingsAndRetainsUsageAndRetryGuards()
+    {
+        f.Provider.Override = (_, _) => Task.FromResult(new CvProviderResponse(new([], ["No content provided for PAGE 1", "No facts found for summary, skill, employment, education, language, certification"]), "empty-test", 100, 50));
+        try
+        {
+            var (candidate, document) = await f.SeedAsync(); using var client = f.Client(); var key = Guid.NewGuid().ToString();
+            var run = await Create(client, candidate, document, key); await Deliver(run.Id); await Process(); run = await Get(client, candidate, run.Id);
+            Assert.Equal("NoFindings", run.Status); Assert.Equal("AI.NoSupportedFacts", run.ErrorCode); Assert.Null(run.Result);
+            Assert.Equal(.0002m, Assert.Single(run.Attempts).UsageCostUsd); Assert.Equal("NoFindings", run.Attempts[0].Outcome);
+            Assert.Equal(run.Id, (await Create(client, candidate, document, key)).Id);
+            client.DefaultRequestHeaders.TryAddWithoutValidation("If-Match", $"\"{run.Version}\"");
+            Assert.Equal(HttpStatusCode.Conflict, (await client.PutAsJsonAsync($"{Path(candidate)}/{run.Id}/review", new { decision = "approve" })).StatusCode);
+            Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"{Path(candidate)}/{run.Id}/retry", new { acknowledgePossibleDuplicateCharge = false })).StatusCode);
+            f.Provider.Override = null; await Process(); Assert.Equal("Succeeded", (await Get(client, candidate, run.Id)).Status);
+        }
+        finally { f.Provider.Override = null; }
+    }
+
+    [Fact]
+    public async Task ImageOnlyPdfFailsWithOcrMessageWithoutCallingTheModel()
+    {
+        var (candidate, document) = await f.SeedAsync(AiFixture.ImageOnlyPdf); using var client = f.Client();
+        var before = f.Provider.Calls; var run = await Create(client, candidate, document); await Deliver(run.Id); await Process();
+        run = await Get(client, candidate, run.Id); Assert.Equal("Failed", run.Status); Assert.Equal("AI.NoReadableText", run.ErrorCode);
+        Assert.Equal(before, f.Provider.Calls); Assert.Equal(0m, Assert.Single(run.Attempts).UsageCostUsd);
+    }
+
+    [Fact]
+    public async Task LegacyEmptySuccessCannotBeApprovedAndIsNotRewritten()
+    {
+        var (candidate, document) = await f.SeedAsync(); using var client = f.Client();
+        var legacy = new CvAnalysis(candidate, document, "test-hr", Guid.NewGuid().ToString(), f.Options.Model, "OpenAI", 0, DateTime.UtcNow);
+        var lease = legacy.Claim(DateTime.UtcNow, TimeSpan.FromMinutes(1));
+        legacy.Finish(lease, CvAnalysisStatus.Succeeded, "{\"facts\":[],\"warnings\":[]}", null, DateTime.UtcNow);
+        await using (var scope = f.Scopes.CreateAsyncScope()) { var db = scope.ServiceProvider.GetRequiredService<CandidateDbContext>(); db.Add(legacy); await db.SaveChangesAsync(); }
+        var run = await Get(client, candidate, legacy.Id); client.DefaultRequestHeaders.TryAddWithoutValidation("If-Match", $"\"{run.Version}\"");
+        var review = await client.PutAsJsonAsync($"{Path(candidate)}/{run.Id}/review", new { decision = "approve" });
+        Assert.Equal(HttpStatusCode.Conflict, review.StatusCode); Assert.Contains("AI.EmptyResultCannotBeReviewed", await review.Content.ReadAsStringAsync());
+        Assert.Equal("Succeeded", (await Get(client, candidate, run.Id)).Status); // Preserve the historical audit record.
+    }
+
     private async Task Process() => Assert.True(await CvAnalysisWorker.ProcessNextAsync(f.Scopes, f.Options, default));
     private Task Deliver(Guid id) => f.WaitAsync(db => db.Set<CvAnalysis>().AnyAsync(x => x.Id == id && x.Delivered));
     private static string Path(Guid candidate) => $"/api/candidates/{candidate}/cv-analyses";

@@ -20,6 +20,15 @@ public sealed class OllamaContractTests
         Assert.Equal("object", body.RootElement.GetProperty("format").GetProperty("type").GetString());
         Assert.All(handler.Urls, url => Assert.Equal("ollama", new Uri(url).Host));
         Assert.False(body.RootElement.TryGetProperty("tools", out _));
+        var input = body.RootElement.GetProperty("messages")[1].GetProperty("content").GetString();
+        Assert.Contains("PAGE 1\nYazılım geliştirici. C# ve .NET.", input);
+    }
+    [Fact]
+    public async Task BlankMinimizedPageCannotBecomeAPageHeaderOnlyNativeRequest()
+    {
+        var handler = new Handler(); var provider = new OllamaCvAnalysisProvider(new HttpClient(handler) { BaseAddress = new Uri("http://ollama:11434") }, Options);
+        var error = await Assert.ThrowsAsync<CvProviderException>(() => provider.AnalyzeAsync([new(1, new string(' ', 57))], "qwen3:4b", default));
+        Assert.Equal("AI.NoAnalyzableText", error.Code); Assert.Empty(handler.Urls);
     }
     [Theory]
     [InlineData("not-json")]

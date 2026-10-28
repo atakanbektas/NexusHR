@@ -123,6 +123,8 @@ internal sealed class CvAnalysisStore(CandidateDbContext db, IPublishEndpoint pu
         else if (action == "review")
         {
             if (run.Status != CvAnalysisStatus.Succeeded) throw new CvAnalysisException(409, "AI.ResultNotAvailable");
+            if (run.ResultJson is null || JsonSerializer.Deserialize<CvAnalysisResult>(run.ResultJson, Json)?.Facts.Count is not > 0)
+                throw new CvAnalysisException(409, "AI.EmptyResultCannotBeReviewed");
             if (decision is not ("approve" or "reject" or "correct") || notes?.Length > 4000 ||
                 (decision == "correct" && string.IsNullOrWhiteSpace(notes))) throw new CvAnalysisException(400, "AI.InvalidReview");
             var revision = await db.Set<CvAnalysisReview>().CountAsync(x => x.AnalysisId == id, ct) + 1;
