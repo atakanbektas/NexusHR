@@ -4,6 +4,8 @@ NexusHR connects candidate verification, hiring offers and employee onboarding. 
 
 **Optional AI CV Analysis:** Candidate-owned asynchronous analysis with evidence, HR review, durable jobs and atomic budget limits. Disabled by default; no paid API calls in CI. See [configuration and recovery](docs/ai-cv-analysis.md) and [ADR 004](docs/adr/004-async-cv-analysis.md).
 
+**Local AI without paid APIs:** Docker Ollama (`qwen3:4b`) is available through an opt-in Compose profile, with an internal-only inference network and zero external API cost. [PowerShell startup and usage](docs/local-ai-ollama.md).
+
 **Verification:** see [integration results](docs/audits/integration-verification.md). Implementation, executed tests and production limitations are reported separately.
 
 ## Business workflow

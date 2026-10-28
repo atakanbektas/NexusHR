@@ -31,3 +31,5 @@ Limits: SMTP may duplicate mail, PDF parsing is not antivirus/OCR, MinIO upstrea
 ## Optional CV analysis
 
 Candidate also owns optional asynchronous CV analysis; it never gates verification or Hiring. Request state and budget reservation commit with the bus Outbox, a short EF Inbox marks delivery, and a separate leased worker invokes the provider outside DB transactions. Unknown external outcomes retain budget and require explicit retry acknowledgement. Read [ADR 004](../adr/004-async-cv-analysis.md) and the [runbook](../ai-cv-analysis.md). The feature and external processing are disabled by default.
+
+An opt-in Docker Ollama adapter now shares the same Candidate job infrastructure. Provider-specific accounting retains paid OpenAI reservations while local runs keep quotas with zero external API cost. Local model readiness gates submission; literal quotes are resolved into authoritative spans and validated. Inference has an internal-only network, separate from model download. See [ADR 005](../adr/005-local-ollama-provider.md) and [local setup](../local-ai-ollama.md).
