@@ -33,6 +33,8 @@ No relational migration is required: status is already stored as a string. Deplo
 
 Execution evidence: 47 targeted input/provider/reliability cases passed; complete ordinary backend suite 140 passed, opt-in native/browser cases deferred to dedicated runs; real native suite 4/4 passed; dedicated browser host 4/4 passed; unchanged business browser suite 3/3 passed; real synthetic Turkish PDF/Ollama upload/evidence/review/restart E2E passed in about 2.9 minutes. These overlapping runs are not added together as independent backend case counts. Release build, frontend lint/build, Compose/migration and final remote CI results are checked separately and reported on the PR.
 
+The first push CI run exposed an existing Onboarding test startup race: it published to a fresh broker before requiring its receive endpoint to be ready. The parallel PR run passed that same test. The test now explicitly waits for MassTransit startup before publishing; assertions, broker-outage coverage and production transport settings are unchanged. The targeted real-broker test passed locally after this correction. This failed CI run is retained as evidence rather than hidden with an unexplained rerun.
+
 ## Retry the same stored CV
 
 ```powershell

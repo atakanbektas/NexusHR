@@ -36,6 +36,13 @@ public sealed class MessagingReliabilityTests
             ["RabbitMq:Username"] = "test-user", ["RabbitMq:Password"] = "test-password",
         });
         builder.Services.AddApplication().AddInfrastructure(builder.Configuration);
+        // A fresh broker has no durable subscription until the receive endpoint is ready.
+        // Publishing immediately after the default asynchronous host start can lose the first event.
+        builder.Services.Configure<MassTransitHostOptions>(options =>
+        {
+            options.WaitUntilStarted = true;
+            options.StartTimeout = TimeSpan.FromSeconds(60);
+        });
         using var host = builder.Build();
         await using (var scope = host.Services.CreateAsyncScope())
             await scope.ServiceProvider.GetRequiredService<OnboardingDbContext>().Database.MigrateAsync();
