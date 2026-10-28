@@ -3,6 +3,10 @@ namespace NexusHR.Candidate.Infrastructure.CvAnalyses;
 public sealed class CvAnalysisOptions
 {
     public bool Enabled { get; set; }
+    public string Provider { get; set; } = "OpenAI";
+    public bool IsLocal => Provider == "Ollama";
+    public OllamaOptions Ollama { get; set; } = new();
+    public int MaxParallelCalls { get; set; } = 2;
     public bool AllowExternalProcessing { get; set; }
     public string Model { get; set; } = "";
     public string ApiKey { get; set; } = "";
@@ -17,13 +21,37 @@ public sealed class CvAnalysisOptions
     public int MaxAttempts { get; set; } = 2;
     // JSON escaping can use six ASCII bytes per UTF-16 code unit; reserve that upper
     // bound plus prompt/schema overhead rather than estimating tokens from words.
-    public decimal Reservation => decimal.Ceiling(((MaxInputCharacters * 6L + 8192) * InputUsdPerMillion + MaxOutputTokens * OutputUsdPerMillion) * 100) / 100_000_000m;
+    public decimal Reservation => IsLocal ? 0 : decimal.Ceiling(((MaxInputCharacters * 6L + 8192) * InputUsdPerMillion + MaxOutputTokens * OutputUsdPerMillion) * 100) / 100_000_000m;
+    public string EffectivePriceVersion => IsLocal ? "local-zero-api-cost-v1" : PriceVersion;
+    public decimal EffectiveInputRate => IsLocal ? 0 : InputUsdPerMillion;
+    public decimal EffectiveOutputRate => IsLocal ? 0 : OutputUsdPerMillion;
     public void Validate()
     {
+        if (Provider is not ("OpenAI" or "Ollama")) throw new InvalidOperationException("Unsupported CV analysis provider.");
         if (!Enabled) return;
-        if (string.IsNullOrWhiteSpace(Model) || Model.Length > 200 || string.IsNullOrWhiteSpace(PriceVersion) || PriceVersion.Length > 100 || InputUsdPerMillion <= 0 ||
-            OutputUsdPerMillion <= 0 || DailyBudgetUsd <= 0 || RequestsPerUserPerDay < 1 || MaxInputCharacters is < 100 or > 40000 ||
-            MaxOutputTokens is < 100 or > 8000 || TimeoutSeconds is < 1 or > 120 || MaxAttempts is < 1 or > 3)
-            throw new InvalidOperationException("AI analysis requires explicit model, versioned positive prices and bounded limits.");
+        if (string.IsNullOrWhiteSpace(Model) || Model.Length > 200 || RequestsPerUserPerDay < 1 || MaxInputCharacters is < 100 or > 40000 ||
+            MaxOutputTokens is < 100 or > 8000 || TimeoutSeconds < 1 || TimeoutSeconds > (IsLocal ? 600 : 120) ||
+            MaxAttempts is < 1 or > 3 || MaxParallelCalls is < 1 or > 2)
+            throw new InvalidOperationException("AI analysis requires an explicit model and bounded limits.");
+        if (IsLocal) Ollama.Validate(Model);
+        else if (string.IsNullOrWhiteSpace(PriceVersion) || PriceVersion.Length > 100 || InputUsdPerMillion <= 0 || OutputUsdPerMillion <= 0 || DailyBudgetUsd <= 0)
+            throw new InvalidOperationException("OpenAI analysis requires versioned positive prices and budget.");
+    }
+}
+
+public sealed class OllamaOptions
+{
+    public string BaseUrl { get; set; } = "http://ollama:11434";
+    public int ContextLength { get; set; } = 16384;
+    public int Threads { get; set; } = 4;
+    public void Validate(string model)
+    {
+        if (!Uri.TryCreate(BaseUrl, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https") ||
+            (uri.Host is not ("ollama" or "nexushr-local-ai") && !uri.IsLoopback) || uri.UserInfo.Length != 0 || uri.AbsolutePath != "/" ||
+            uri.Query.Length != 0 || uri.Fragment.Length != 0)
+            throw new InvalidOperationException("Ollama must use the local Docker service or a loopback URL, without credentials/path/query.");
+        if (!System.Text.RegularExpressions.Regex.IsMatch(model, @"\A[a-zA-Z0-9][a-zA-Z0-9._/-]*:[a-zA-Z0-9][a-zA-Z0-9._-]*\z", System.Text.RegularExpressions.RegexOptions.CultureInvariant,
+                TimeSpan.FromSeconds(1)) || model.Contains("cloud", StringComparison.OrdinalIgnoreCase) || ContextLength is < 4096 or > 32768 || Threads is < 1 or > 12)
+            throw new InvalidOperationException("Use an explicit local model tag and bounded Ollama context/threads.");
     }
 }

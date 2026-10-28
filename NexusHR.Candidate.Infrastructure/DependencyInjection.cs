@@ -87,7 +87,14 @@ public static class DependencyInjection
         services.AddScoped<CvAnalysisStore>();
         services.AddScoped<ICvAnalysisStore>(sp => sp.GetRequiredService<CvAnalysisStore>());
         services.AddScoped<ICvTextExtractor, PdfCvTextExtractor>();
-        services.AddHttpClient<ICvAnalysisProvider, OpenAiCvAnalysisProvider>(http => http.Timeout = TimeSpan.FromSeconds(aiOptions.TimeoutSeconds));
+        if (aiOptions.IsLocal)
+            services.AddHttpClient<ICvAnalysisProvider, OllamaCvAnalysisProvider>(http =>
+            {
+                http.BaseAddress = new Uri(aiOptions.Ollama.BaseUrl);
+                http.Timeout = TimeSpan.FromSeconds(aiOptions.TimeoutSeconds);
+            }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+        else
+            services.AddHttpClient<ICvAnalysisProvider, OpenAiCvAnalysisProvider>(http => http.Timeout = TimeSpan.FromSeconds(aiOptions.TimeoutSeconds));
         services.AddHostedService<CvAnalysisWorker>();
         services.AddMassTransit(configurator =>
         {

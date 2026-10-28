@@ -9,7 +9,7 @@ using NexusHR.Contracts.Candidates;
 
 namespace NexusHR.Candidate.Infrastructure.CvAnalyses;
 
-internal sealed class CvAnalysisStore(CandidateDbContext db, IPublishEndpoint publisher, CvAnalysisOptions options) : ICvAnalysisStore
+internal sealed class CvAnalysisStore(CandidateDbContext db, IPublishEndpoint publisher, CvAnalysisOptions options, ICvAnalysisProvider provider) : ICvAnalysisStore
 {
     internal static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     // A transaction-scoped lock serializes only short AI state/budget writes across replicas.
@@ -20,6 +20,10 @@ internal sealed class CvAnalysisStore(CandidateDbContext db, IPublishEndpoint pu
     {
         ValidateUser(user);
         if (string.IsNullOrWhiteSpace(key) || key.Length > 100) throw new CvAnalysisException(400, "AI.InvalidIdempotencyKey");
+        // Readiness performs no CV transfer and never holds a database transaction open.
+        // An acknowledged idempotent replay must remain readable even during an outage.
+        var replay = await db.Set<CvAnalysis>().AsNoTracking().SingleOrDefaultAsync(x => x.CandidateId == candidateId && x.RequestedBy == user && x.IdempotencyKey == key, ct);
+        if (replay is null) { RequireEnabled(); await RequireReadyAsync(ct); }
         await using var tx = await db.Database.BeginTransactionAsync(ct); await LockAsync(db, ct);
         var existing = await db.Set<CvAnalysis>().SingleOrDefaultAsync(x => x.CandidateId == candidateId && x.RequestedBy == user && x.IdempotencyKey == key, ct);
         if (existing is not null)
@@ -28,14 +32,14 @@ internal sealed class CvAnalysisStore(CandidateDbContext db, IPublishEndpoint pu
             return await ViewAsync(existing, ct);
         }
         RequireEnabled();
-        if (options.AllowExternalProcessing && !consent) throw new CvAnalysisException(400, "AI.ProcessingAcknowledgementRequired");
+        if (!options.IsLocal && options.AllowExternalProcessing && !consent) throw new CvAnalysisException(400, "AI.ProcessingAcknowledgementRequired");
         if (!await db.CandidateDocuments.AnyAsync(x => x.Id == documentId && x.CandidateId == candidateId && x.Type == CandidateDocumentType.Cv, ct))
             throw new CvAnalysisException(404, "Candidate.CvNotFound");
         if (await db.Set<CvAnalysis>().AnyAsync(x => x.DocumentId == documentId && (x.Status == CvAnalysisStatus.Queued || x.Status == CvAnalysisStatus.Running), ct))
             throw new CvAnalysisException(409, "AI.AnalysisAlreadyActive");
         var now = DateTime.UtcNow;
         await ReserveAsync(user, now, ct);
-        var run = new CvAnalysis(candidateId, documentId, user, key, options.Model, "OpenAI", options.Reservation, now, consent);
+        var run = new CvAnalysis(candidateId, documentId, user, key, options.Model, options.Provider, options.Reservation, now, consent);
         db.Add(run);
         await publisher.Publish(new CvAnalysisRequested(run.Id), ct);
         await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
@@ -46,11 +50,21 @@ internal sealed class CvAnalysisStore(CandidateDbContext db, IPublishEndpoint pu
     {
         if (!options.Enabled) throw new CvAnalysisException(503, "AI.Disabled");
     }
+    private async Task RequireReadyAsync(CancellationToken ct)
+    {
+        if (await provider.GetUnavailableCodeAsync(options.Model, ct) is { } error) throw new CvAnalysisException(503, error);
+    }
     internal async Task ReserveAsync(string user, DateTime now, CancellationToken ct)
     {
         var day = DateOnly.FromDateTime(now);
         var quota = await db.Set<AiDailyQuota>().FindAsync([day, user], ct);
         if (quota?.Reservations >= options.RequestsPerUserPerDay) throw new CvAnalysisException(429, "AI.UserQuotaExceeded");
+        if (options.IsLocal)
+        {
+            if (quota is null) { quota = new() { Day = day, Subject = user }; db.Add(quota); }
+            quota.Reservations++;
+            return; // Local compute still has quotas; it does not reserve paid API funds.
+        }
         var budget = await db.Set<AiDailyBudget>().FindAsync([day], ct);
         if (budget is null) { budget = new() { Day = day }; db.Add(budget); }
         if (budget.CommittedUsd + options.Reservation > options.DailyBudgetUsd) throw new CvAnalysisException(429, "AI.DailyBudgetExceeded");
@@ -60,6 +74,7 @@ internal sealed class CvAnalysisStore(CandidateDbContext db, IPublishEndpoint pu
     }
     internal static async Task SettleAsync(CandidateDbContext db, CvAnalysis run, decimal actual, CancellationToken ct)
     {
+        if (run.Provider == "Ollama") return;
         var budget = await db.Set<AiDailyBudget>().SingleAsync(x => x.Day == run.ReservationDay, ct);
         budget.CommittedUsd = Math.Max(0, budget.CommittedUsd - run.ReservedUsd + actual);
     }
@@ -70,7 +85,8 @@ internal sealed class CvAnalysisStore(CandidateDbContext db, IPublishEndpoint pu
         var query = db.Set<CvAnalysis>().AsNoTracking().Where(x => x.CandidateId == candidateId);
         var runs = await query.OrderByDescending(x => x.CreatedAtUtc).ThenBy(x => x.Id).Skip((page - 1) * 20).Take(20).ToListAsync(ct);
         var views = new List<AnalysisView>(); foreach (var run in runs) views.Add(await ViewAsync(run, ct));
-        return new(new(options.Enabled, options.AllowExternalProcessing, "OpenAI", options.Reservation),
+        var unavailable = options.Enabled ? await provider.GetUnavailableCodeAsync(options.Model, ct) : null;
+        return new(new(options.Enabled, !options.IsLocal && options.AllowExternalProcessing, options.Provider, options.Reservation, unavailable is null, unavailable),
             await db.CandidateDocuments.Where(x => x.CandidateId == candidateId && x.Type == CandidateDocumentType.Cv).Select(x => (Guid?)x.Id).SingleOrDefaultAsync(ct),
             views, page, await query.CountAsync(ct));
     }
@@ -81,6 +97,7 @@ internal sealed class CvAnalysisStore(CandidateDbContext db, IPublishEndpoint pu
     public async Task<AnalysisView> MutateAsync(Guid candidateId, Guid id, string user, uint version, string action, bool acknowledgeUnknown, string? decision, string? notes, CancellationToken ct)
     {
         ValidateUser(user);
+        if (action == "retry") { RequireEnabled(); await RequireReadyAsync(ct); }
         await using var tx = await db.Database.BeginTransactionAsync(ct); await LockAsync(db, ct);
         var run = await FindAsync(candidateId, id, ct);
         if (run.Version != version) throw new CvAnalysisException(409, "AI.VersionConflict");
@@ -96,7 +113,7 @@ internal sealed class CvAnalysisStore(CandidateDbContext db, IPublishEndpoint pu
             RequireEnabled();
             if (run.RequestedBy != user) throw new CvAnalysisException(403, "AI.RetryRequiresOriginalRequester");
             if (run.AttemptCount >= options.MaxAttempts) throw new CvAnalysisException(409, "AI.AttemptLimit");
-            if (run.Model != options.Model) throw new CvAnalysisException(409, "AI.ModelChangedCreateNewAnalysis");
+            if (run.Model != options.Model || run.Provider != options.Provider) throw new CvAnalysisException(409, "AI.ModelChangedCreateNewAnalysis");
             if (await db.Set<CvAnalysis>().AnyAsync(x => x.Id != id && x.DocumentId == run.DocumentId &&
                 (x.Status == CvAnalysisStatus.Running || x.Status == CvAnalysisStatus.Queued), ct)) throw new CvAnalysisException(409, "AI.AnalysisAlreadyActive");
             await ReserveAsync(user, now, ct);
@@ -127,5 +144,5 @@ internal sealed class CvAnalysisStore(CandidateDbContext db, IPublishEndpoint pu
         await db.Set<CvAnalysisReview>().Where(x => x.AnalysisId == r.Id).OrderByDescending(x => x.Revision)
             .Select(x => new ReviewView(x.Reviewer, x.Decision, x.Notes, x.CreatedAtUtc, x.Revision)).ToListAsync(ct),
         await db.Set<CvAnalysisAttempt>().Where(x => x.AnalysisId == r.Id).OrderBy(x => x.Number)
-            .Select(x => new AttemptView(x.Number, x.Outcome, x.InputTokens, x.OutputTokens, x.ReservedUsd, x.UsageCostUsd, x.PriceVersion)).ToListAsync(ct));
+            .Select(x => new AttemptView(x.Number, x.Outcome, x.InputTokens, x.OutputTokens, x.ReservedUsd, x.UsageCostUsd, x.PriceVersion)).ToListAsync(ct), r.Provider);
 }

@@ -23,7 +23,7 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
             {
                 await RecoverAsync(scopes, stoppingToken);
                 // Bounded local concurrency; leases also prevent duplicate work across replicas.
-                await Task.WhenAll(ProcessNextAsync(scopes, options, stoppingToken), ProcessNextAsync(scopes, options, stoppingToken));
+                await Task.WhenAll(Enumerable.Range(0, options.MaxParallelCalls).Select(_ => ProcessNextAsync(scopes, options, stoppingToken)));
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
             catch (Exception ex) { log.LogWarning("AI worker cycle failed ({ErrorType}); durable jobs will be recovered", ex.GetType().Name); }
@@ -41,9 +41,10 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
         foreach (var run in expired)
         {
             var attempt = await db.Set<CvAnalysisAttempt>().SingleAsync(x => x.AnalysisId == run.Id && x.Number == run.AttemptCount, ct);
-            var unknown = attempt.DispatchedAtUtc.HasValue;
+            var local = run.Provider == "Ollama";
+            var unknown = attempt.DispatchedAtUtc.HasValue && !local;
             run.Finish(run.LeaseId!.Value, unknown ? CvAnalysisStatus.OutcomeUnknown : CvAnalysisStatus.Failed, null,
-                unknown ? "AI.OutcomeUnknown" : "AI.WorkerInterruptedBeforeDispatch", now);
+                unknown ? "AI.OutcomeUnknown" : attempt.DispatchedAtUtc.HasValue ? "AI.WorkerInterrupted" : "AI.WorkerInterruptedBeforeDispatch", now);
             attempt.Outcome = run.Status.ToString(); attempt.FinishedAtUtc = now;
             if (!unknown) { attempt.UsageCostUsd = 0; await CvAnalysisStore.SettleAsync(db, run, 0, ct); }
         }
@@ -64,7 +65,7 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
             if (run is null) return false;
             id = run.Id; lease = run.Claim(now, TimeSpan.FromSeconds(options.TimeoutSeconds + 60)); number = run.AttemptCount;
             db.Add(new CvAnalysisAttempt { AnalysisId = id, Number = number, StartedAtUtc = now,
-                ReservedUsd = run.ReservedUsd, PriceVersion = options.PriceVersion, InputRate = options.InputUsdPerMillion, OutputRate = options.OutputUsdPerMillion });
+                ReservedUsd = run.ReservedUsd, PriceVersion = options.EffectivePriceVersion, InputRate = options.EffectiveInputRate, OutputRate = options.EffectiveOutputRate });
             await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
         }
 
@@ -79,7 +80,7 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
             if (provider.RequiresExternalProcessing && (!options.AllowExternalProcessing || !run.ExternalProcessingAcknowledged))
                 throw new CvProviderException("AI.ExternalProcessingDisabled");
             if (provider.RequiresExternalProcessing && string.IsNullOrWhiteSpace(options.ApiKey)) throw new CvProviderException("AI.ProviderNotConfigured");
-            if (run.ReservedUsd < options.Reservation || run.Model != options.Model) throw new CvProviderException("AI.ConfigurationChangedRetryRequired");
+            if (run.ReservedUsd < options.Reservation || run.Model != options.Model || run.Provider != options.Provider) throw new CvProviderException("AI.ConfigurationChangedRetryRequired");
             var document = await db.CandidateDocuments.SingleAsync(x => x.Id == run.DocumentId && x.CandidateId == run.CandidateId, ct);
             var bytes = await scope.ServiceProvider.GetRequiredService<ICandidateDocumentStorage>().DownloadAsync(document.ObjectName, ct);
             var pages = await scope.ServiceProvider.GetRequiredService<ICvTextExtractor>().ExtractPagesAsync(bytes, ct);
@@ -100,7 +101,7 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
                 }
                 // Queues can survive an overnight outage. Never spend yesterday's
                 // reservation against today's provider usage without a fresh budget check.
-                if (run.ReservationDay != DateOnly.FromDateTime(DateTime.UtcNow))
+                if (run.Provider != "Ollama" && run.ReservationDay != DateOnly.FromDateTime(DateTime.UtcNow))
                     throw new CvProviderException("AI.ReservationExpiredRetryRequired");
                 var hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
                 document.RecordContentHash(hash); // Lazy additive backfill for existing immutable CVs.
@@ -111,7 +112,9 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
             }
             dispatched = true;
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct); deadline.CancelAfter(TimeSpan.FromSeconds(options.TimeoutSeconds));
-            response = await provider.AnalyzeAsync(pages, run.Model, deadline.Token);
+            var monitor = options.IsLocal ? MonitorCancellationAsync(scopes, id, lease, deadline) : Task.CompletedTask;
+            try { response = await provider.AnalyzeAsync(pages, run.Model, deadline.Token); }
+            finally { await deadline.CancelAsync(); await monitor; }
             if (response.InputTokens < 0 || response.OutputTokens < 0) throw new InvalidDataException("Invalid usage.");
             EvidenceValidator.Validate(response.Result, pages);
             status = CvAnalysisStatus.Succeeded;
@@ -136,9 +139,10 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
             if (run.LeaseId != lease) return true;
             var attempt = await db.Set<CvAnalysisAttempt>().SingleAsync(x => x.AnalysisId == id && x.Number == number, finishCt);
             // Unknown/invalid provider output keeps its full reservation unless trustworthy usage was returned.
-            decimal? cost = response is { InputTokens: >= 0, OutputTokens: >= 0 } ? (response.InputTokens * attempt.InputRate + response.OutputTokens * attempt.OutputRate) / 1_000_000m :
+            decimal? cost = run.Provider == "Ollama" ? 0 : response is { InputTokens: >= 0, OutputTokens: >= 0 } ? (response.InputTokens * attempt.InputRate + response.OutputTokens * attempt.OutputRate) / 1_000_000m :
                 !dispatched || retry is not null ? 0 : null;
-            if (run.CancellationRequested && status == CvAnalysisStatus.Succeeded) status = CvAnalysisStatus.Cancelled;
+            if (run.Provider == "Ollama" && status == CvAnalysisStatus.OutcomeUnknown) { status = CvAnalysisStatus.Failed; error = "AI.OllamaUnavailable"; }
+            if (run.CancellationRequested && (status == CvAnalysisStatus.Succeeded || run.Provider == "Ollama")) status = CvAnalysisStatus.Cancelled;
             run.Finish(lease, status, status == CvAnalysisStatus.Succeeded ? JsonSerializer.Serialize(response!.Result, CvAnalysisStore.Json) : null, error, DateTime.UtcNow);
             attempt.Outcome = status.ToString(); attempt.FinishedAtUtc = DateTime.UtcNow; attempt.ProviderRequestId = response?.RequestId;
             attempt.InputTokens = response?.InputTokens; attempt.OutputTokens = response?.OutputTokens; attempt.UsageCostUsd = cost;
@@ -164,5 +168,21 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
             text = Regex.Replace(text, Regex.Escape(value), m => new string(' ', m.Length), RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
         text = Regex.Replace(text, @"[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}|(?:\+?\d[\d ()-]{8,}\d)", m => new string(' ', m.Length), RegexOptions.None, TimeSpan.FromSeconds(1));
         return text;
+    }
+
+    private static async Task MonitorCancellationAsync(IServiceScopeFactory scopes, Guid id, Guid lease, CancellationTokenSource deadline)
+    {
+        try
+        {
+            while (!deadline.IsCancellationRequested)
+            {
+                await Task.Delay(500, deadline.Token);
+                await using var scope = scopes.CreateAsyncScope();
+                var state = await scope.ServiceProvider.GetRequiredService<CandidateDbContext>().Set<CvAnalysis>()
+                    .Where(x => x.Id == id).Select(x => new { x.LeaseId, x.CancellationRequested }).SingleAsync(deadline.Token);
+                if (state.CancellationRequested || state.LeaseId != lease) { await deadline.CancelAsync(); return; }
+            }
+        }
+        catch (Exception) { /* Best-effort cancellation; the outer timeout and durable lease still bound execution. */ }
     }
 }

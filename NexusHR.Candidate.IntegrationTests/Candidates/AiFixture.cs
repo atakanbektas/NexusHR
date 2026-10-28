@@ -132,6 +132,8 @@ public sealed class FakeCvProvider : ICvAnalysisProvider
 {
     public bool RequiresExternalProcessing => false;
     public int Calls;
+    public string? UnavailableCode;
+    public Task<string?> GetUnavailableCodeAsync(string model, CancellationToken ct) => Task.FromResult(UnavailableCode);
     public Func<IReadOnlyList<CvTextPage>, CancellationToken, Task<CvProviderResponse>>? Override;
     public Task<CvProviderResponse> AnalyzeAsync(IReadOnlyList<CvTextPage> pages, string model, CancellationToken ct)
     {
