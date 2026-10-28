@@ -33,6 +33,8 @@ Profil, Candidate API için `Enabled=true`, `Provider=Ollama`, `AllowExternalPro
 5. Profesyonel özet, teknik beceriler, deneyim, eğitim, sertifikalar ve dilleri; sayfa/alıntı kanıtlarıyla inceleyin. Kaynakta bulunmayan alanlar uyarıyla gösterilir.
 6. HR onay/ret/düzeltme notu kaydeder. Sonuç aday doğrulamasını, Hiring veya Onboarding kararını otomatik değiştirmez.
 
+İletişim bilgileri gizlendikten sonra metin kalmazsa CV modele gönderilmez; **Doğrulanmış sonuç yok** (`NoFindings`) gösterilir. Okunabilir metne rağmen model sıfır kanıtlı bilgi döndürürse de bu, başarılı analiz sayılmaz. Görsel/tarama PDF için OCR eksikliği açıkça bildirilir. Eski boş `Succeeded` kayıtları audit geçmişinde korunur; ekranda **Eski boş analiz** olarak gösterilir ve onaylanamaz. Aynı CV için **Analiz başlat** yeni bir kayıt açar; eksik profesyonel bilgi uydurulmaz. [Kök neden ve yeniden deneme adımları](audits/empty-cv-analysis-fix.md).
+
 Özet de kaynakta bulunan profesyonel ifadenin alıntısıdır; uydurma serbest anlatım oluşturulmaz. Model bir adayın CV'sinde yazanların doğruluğunu veya işe uygunluğunu kanıtlamaz.
 
 HrManager ve Auditor yalnızca okuyabilir. DepartmentManager, IT ve Admin'e örtük CV erişimi verilmez. Backend yetkilendirmesi asıldır.
