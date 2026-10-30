@@ -86,7 +86,24 @@ public static class DependencyInjection
         services.AddSingleton(aiOptions);
         services.AddScoped<CvAnalysisStore>();
         services.AddScoped<ICvAnalysisStore>(sp => sp.GetRequiredService<CvAnalysisStore>());
-        services.AddScoped<ICvTextExtractor, PdfCvTextExtractor>();
+        services.AddScoped<ICvDocumentHistory, CvDocumentHistory>();
+        var documentOptions = configuration.GetSection("LocalDocuments").Get<LocalDocumentOptions>() ?? new();
+        documentOptions.Validate();
+        services.AddSingleton(documentOptions);
+        var safetyOptions = configuration.GetSection("DocumentSafety").Get<DocumentSafetyOptions>() ?? new();
+        safetyOptions.Validate();
+        services.AddSingleton(safetyOptions);
+        services.AddSingleton<ICvDocumentScanner, ClamAvDocumentScanner>();
+        services.AddHttpClient<LocalDocumentValidator>(http =>
+        {
+            http.BaseAddress = new Uri(documentOptions.BaseUrl);
+            http.Timeout = TimeSpan.FromSeconds(30);
+        }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+        services.AddHttpClient<ICvTextExtractor, LocalCvTextExtractor>(http =>
+        {
+            http.BaseAddress = new Uri(documentOptions.BaseUrl);
+            http.Timeout = TimeSpan.FromSeconds(95);
+        }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, MaxResponseHeadersLength = 16 });
         if (aiOptions.IsLocal)
             services.AddHttpClient<ICvAnalysisProvider, OllamaCvAnalysisProvider>(http =>
             {

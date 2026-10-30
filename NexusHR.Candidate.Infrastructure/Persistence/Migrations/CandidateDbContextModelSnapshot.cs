@@ -259,6 +259,11 @@ namespace NexusHR.Candidate.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<bool>("IsCurrent")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
                     b.Property<string>("ObjectName")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -268,6 +273,14 @@ namespace NexusHR.Candidate.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
+
+                    b.Property<Guid?>("PreviousDocumentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Revision")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
 
                     b.Property<long>("SizeBytes")
                         .HasColumnType("bigint");
@@ -286,6 +299,10 @@ namespace NexusHR.Candidate.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.HasIndex("CandidateId", "Type")
+                        .IsUnique()
+                        .HasFilter("\"IsCurrent\" = TRUE");
+
+                    b.HasIndex("CandidateId", "Type", "Revision")
                         .IsUnique();
 
                     b.ToTable("candidate_documents", (string)null);
@@ -411,6 +428,11 @@ namespace NexusHR.Candidate.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("Stage")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -507,6 +529,10 @@ namespace NexusHR.Candidate.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("AnalysisId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("CorrectedValue")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -514,6 +540,9 @@ namespace NexusHR.Candidate.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
+
+                    b.Property<int?>("FactIndex")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Notes")
                         .IsRequired()

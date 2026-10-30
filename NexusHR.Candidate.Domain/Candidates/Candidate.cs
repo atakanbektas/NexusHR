@@ -117,6 +117,12 @@ public sealed class Candidate
         UpdatedAtUtc = DateTime.UtcNow;
     }
 
+    public void RecordCvReplacement()
+    {
+        if (Status != CandidateStatus.DocumentsPending) throw new InvalidOperationException("Verified CV cannot be replaced.");
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
     public void MarkReadyForHiring()
     {
         if (Status != CandidateStatus.DocumentsPending)

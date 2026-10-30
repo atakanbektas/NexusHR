@@ -43,6 +43,8 @@ public sealed class AiFixture : IAsyncLifetime
     public FakeCvProvider Provider = new();
     public CvAnalysisOptions Options => App.Services.GetRequiredService<CvAnalysisOptions>();
     public IServiceScopeFactory Scopes => App.Services.GetRequiredService<IServiceScopeFactory>();
+    public IReadOnlyDictionary<string, string?>? ExtraConfiguration { get; init; }
+    public Action<IServiceCollection>? ExtraServices { get; init; }
     public async Task InitializeAsync()
     {
         await Task.WhenAll(Postgres.StartAsync(), Broker.StartAsync(), Minio.StartAsync());
@@ -58,10 +60,12 @@ public sealed class AiFixture : IAsyncLifetime
             ["CvAnalysis:Enabled"] = "true", ["CvAnalysis:Model"] = "synthetic-test-model", ["CvAnalysis:PriceVersion"] = "test-rates-v1",
             ["CvAnalysis:InputUsdPerMillion"] = "1", ["CvAnalysis:OutputUsdPerMillion"] = "2", ["CvAnalysis:RequestsPerUserPerDay"] = "100",
         });
+        if (ExtraConfiguration is not null) builder.Configuration.AddInMemoryCollection(ExtraConfiguration);
         builder.Services.AddApplication().AddInfrastructure(builder.Configuration);
         builder.Services.Replace(ServiceDescriptor.Singleton<ICvAnalysisProvider>(Provider));
         var worker = builder.Services.Single(x => x.ServiceType == typeof(IHostedService) && x.ImplementationType == typeof(CvAnalysisWorker));
         builder.Services.Remove(worker); // Tests control worker scheduling/crash boundaries deterministically.
+        ExtraServices?.Invoke(builder.Services);
         builder.Services.AddControllers().AddApplicationPart(typeof(CvAnalysesController).Assembly);
         builder.Services.AddScoped<CvAnalysisExceptionFilter>();
         builder.Services.AddAuthentication("AiTest").AddScheme<AuthenticationSchemeOptions, Identity>("AiTest", _ => { });
@@ -119,6 +123,8 @@ public sealed class AiFixture : IAsyncLifetime
     internal static byte[] ContactOnlyPdf => MinimalPdf(
         "BT /F1 12 Tf 50 750 Td (Ada Lovelace) Tj 0 -20 Td (synthetic-demo-000@example.test) Tj 0 -20 Td (05555555555) Tj ET");
     internal static byte[] ImageOnlyPdf => MinimalPdf("q 100 0 0 100 50 600 cm /Im1 Do Q", true);
+    internal static byte[] ProfessionalPdf => MinimalPdf(
+        "BT /F1 12 Tf 50 750 Td (Synthetic Person) Tj 0 -20 Td (Acme Engineer 2020-01 2022-12) Tj 0 -20 Td (Example University Computer Science BSc 2015-2019) Tj 0 -20 Td (C# PostgreSQL RabbitMQ) Tj 0 -20 Td (English B2) Tj ET");
     private static byte[] MinimalPdf(string text, bool image = false)
     {
         var resource = image ? "/XObject << /Im1 4 0 R >>" : "/Font << /F1 4 0 R >>";

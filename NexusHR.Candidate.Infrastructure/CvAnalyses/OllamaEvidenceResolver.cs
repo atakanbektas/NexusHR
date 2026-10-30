@@ -11,7 +11,7 @@ internal static class OllamaEvidenceResolver
     internal static EvidenceResolution Resolve(string category, string value, int number, string quote, IReadOnlyList<CvTextPage> pages)
     {
         if (string.IsNullOrWhiteSpace(value) || value.Length > 500 || string.IsNullOrWhiteSpace(quote) || quote.Length > 1500 ||
-            category is not ("summary" or "skill" or "employment" or "education" or "language" or "certification"))
+            category is not ("summary" or "skill" or "employment" or "education" or "language" or "certification" or "project" or "technology" or "experience" or "specialization"))
             return new(null, EvidenceRejection.Shape);
         var page = pages.SingleOrDefault(p => p.Number == number);
         if (page is null) return new(null, EvidenceRejection.Page);

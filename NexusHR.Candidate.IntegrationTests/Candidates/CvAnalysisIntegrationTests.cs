@@ -87,6 +87,28 @@ public sealed class CvAnalysisIntegrationTests(AiFixture f) : IClassFixture<AiFi
         await Cancel(one, candidate, await Get(one, candidate, results[0].Id));
     }
 
+    [Fact]
+    public async Task PerFactHumanCorrectionIsAuditedSeparatelyWithVersionAndRoleChecks()
+    {
+        var (candidate, document) = await f.SeedAsync(); using var client = f.Client();
+        var run = await Create(client, candidate, document, Guid.NewGuid().ToString()); await Deliver(run.Id);
+        await CvAnalysisWorker.ProcessNextAsync(f.Scopes, f.Options, default);
+        run = await Get(client, candidate, run.Id);
+        client.DefaultRequestHeaders.TryAddWithoutValidation("If-Match", $"\"{run.Version}\"");
+        var response = await client.PutAsJsonAsync($"{Path(candidate)}/{run.Id}/review", new { decision = "correct", factIndex = 0, correctedValue = "Human annotation" });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var reviewed = (await response.Content.ReadFromJsonAsync<AnalysisView>())!;
+        Assert.Equal("C#", reviewed.Result!.Facts[0].Value);
+        Assert.Equal("Human annotation", Assert.Single(reviewed.Reviews).CorrectedValue);
+        Assert.Equal(0, reviewed.Reviews[0].FactIndex);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PutAsJsonAsync($"{Path(candidate)}/{run.Id}/review", new { decision = "reject", factIndex = 0 })).StatusCode);
+        using var auditor = f.Client("Auditor"); auditor.DefaultRequestHeaders.TryAddWithoutValidation("If-Match", $"\"{reviewed.Version}\"");
+        Assert.Equal(HttpStatusCode.Forbidden, (await auditor.PutAsJsonAsync($"{Path(candidate)}/{run.Id}/review", new { decision = "approve", factIndex = 0 })).StatusCode);
+        using var admin = f.Client("Admin");
+        Assert.Equal(HttpStatusCode.Forbidden, (await admin.GetAsync($"/api/candidates/{candidate}/documents/cv/versions")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await f.Client("DepartmentManager").GetAsync($"/api/candidates/{candidate}/documents/cv/versions/{document}")).StatusCode);
+    }
+
     [Theory]
     [InlineData(null, 401)]
     [InlineData("DepartmentManager", 403)]

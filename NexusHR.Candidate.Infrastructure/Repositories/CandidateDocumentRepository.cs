@@ -17,7 +17,7 @@ internal sealed class CandidateDocumentRepository(
         return dbContext.CandidateDocuments.AnyAsync(
             document =>
                 document.CandidateId == candidateId &&
-                document.Type == type,
+                document.Type == type && document.IsCurrent,
             cancellationToken);
     }
 
@@ -31,7 +31,7 @@ internal sealed class CandidateDocumentRepository(
             .SingleOrDefaultAsync(
                 document =>
                     document.CandidateId == candidateId &&
-                    document.Type == type,
+                    document.Type == type && document.IsCurrent,
                 cancellationToken);
     }
 

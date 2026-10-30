@@ -18,6 +18,7 @@ namespace NexusHR.Candidate.Api.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/candidates")]
+[TypeFilter(typeof(CvAnalysisExceptionFilter))]
 public sealed class CandidatesController(
     ISender sender)
     : ControllerBase
@@ -216,6 +217,7 @@ public sealed class CandidatesController(
     [Authorize(
         Roles = NexusHrRoles.CandidateEditors)]
     [HttpPost("{id:guid}/documents/cv")]
+    [HttpPut("{id:guid}/documents/cv")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(6 * 1024 * 1024)]
     public async Task<IActionResult> UploadCv(
@@ -243,11 +245,18 @@ public sealed class CandidatesController(
             memoryStream,
             cancellationToken);
 
+        Guid? previous = null;
+        if (HttpMethods.IsPut(Request.Method))
+        {
+            if (!Guid.TryParse(Request.Headers.IfMatch.ToString().Trim('"'), out var expected))
+                return StatusCode(428, new { code = "Candidate.CvVersionRequired", errors = new[] { "Güncellenecek CV sürümünü If-Match ile belirtin." } });
+            previous = expected;
+        }
         var command = new UploadCandidateCvCommand(
             id,
             file.FileName,
             file.ContentType,
-            memoryStream.ToArray());
+            memoryStream.ToArray(), previous);
 
         var response = await sender.Send(
             command,

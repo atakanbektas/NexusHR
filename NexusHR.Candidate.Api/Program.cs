@@ -41,7 +41,10 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddDatabaseReadiness<CandidateDbContext>();
 builder.AddApiDefaults();
+builder.Services.AddHealthChecks().AddCheck<NexusHR.Candidate.Api.DocumentReadiness>("documents", tags: ["ready"]);
 var app = builder.Build();
+if (app.Environment.IsProduction() && !builder.Configuration.GetValue<bool>("DocumentSafety:Enabled"))
+    throw new InvalidOperationException("Production requires enabled local document malware scanning.");
 app.UseApiDefaults();
 
 if (app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("Database:ApplyMigrations"))

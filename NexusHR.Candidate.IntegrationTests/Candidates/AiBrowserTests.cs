@@ -1,7 +1,9 @@
 using System.Diagnostics;
+using System.Net.Http.Json;
+using NexusHR.Candidate.Application.CvAnalyses;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
-using NexusHR.Candidate.Application.CvAnalyses;
+
 using NexusHR.Candidate.Domain.CvAnalyses;
 using NexusHR.Candidate.Infrastructure.Persistence;
 using NexusHR.Candidate.Infrastructure.CvAnalyses;
@@ -10,6 +12,29 @@ namespace NexusHR.Candidate.IntegrationTests.Candidates;
 
 public sealed class AiBrowserTests(AiFixture fixture) : IClassFixture<AiFixture>
 {
+    [AiBrowserFact]
+    public async Task BrowserReviewsStructuredFactsAndReplacesCvWithoutLosingOriginalAnalysis()
+    {
+        using var client = fixture.Client();
+        var created = await client.PostAsJsonAsync("/api/candidates", new { firstName = "Synthetic", lastName = "Person", email = $"portfolio-{Guid.NewGuid():N}@example.test", phoneNumber = "05555555555" });
+        created.EnsureSuccessStatusCode(); var candidate = (await created.Content.ReadFromJsonAsync<CreatedCandidate>())!.Id;
+        using var body = new MultipartFormDataContent(); var file = new ByteArrayContent(AiFixture.ProfessionalPdf);
+        file.Headers.ContentType = new("application/pdf"); body.Add(file, "file", "synthetic-professional.pdf");
+        (await client.PostAsync($"/api/candidates/{candidate}/documents/cv", body)).EnsureSuccessStatusCode();
+        fixture.Provider.Override = (pages, _) => {
+            var page = pages[0];
+            CvFact Fact(string category, string value, string quote, params CvField[] fields) =>
+                new(category, value, 1, page.Text.IndexOf(quote, StringComparison.Ordinal), quote) { Fields = fields };
+            return Task.FromResult(new CvProviderResponse(new([
+                Fact("employment", "Engineer", "Acme Engineer 2020-01 2022-12", new CvField("company", "Acme", "Acme"), new CvField("position", "Engineer", "Engineer"), new CvField("start", "2020-01", "2020-01"), new CvField("end", "2022-12", "2022-12")),
+                Fact("education", "Example University", "Example University Computer Science BSc 2015-2019", new CvField("institution", "Example University", "Example University"), new CvField("degree", "BSc", "BSc")),
+                Fact("skill", "C#", "C#"), Fact("language", "English", "English B2", new CvField("level", "B2", "B2"))
+            ], []), "synthetic-structured", 100, 50));
+        };
+        try { await RunBrowserAsync(candidate, "portfolio-review.spec.ts", "portfolio-review"); }
+        finally { fixture.Provider.Override = null; }
+    }
+    private sealed record CreatedCandidate(Guid Id);
     [AiBrowserFact]
     public async Task RealBrowserRunsAnalysisAndReviewAgainstFakeProviderWithPostgresRabbitMqAndMinio()
     {
@@ -59,11 +84,14 @@ public sealed class AiBrowserTests(AiFixture fixture) : IClassFixture<AiFixture>
             var root = new DirectoryInfo(AppContext.BaseDirectory);
             while (root is not null && !File.Exists(Path.Combine(root.FullName, "NexusHR.slnx"))) root = root.Parent;
             Assert.NotNull(root);
-            var process = new ProcessStartInfo("node") { WorkingDirectory = Path.Combine(root.FullName, "NexusHR.Web"), RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
+            var process = new ProcessStartInfo("node") { WorkingDirectory = Path.Combine(root.FullName, "NexusHR.Web"), RedirectStandardOutput = true, RedirectStandardError = true,
+                StandardOutputEncoding = System.Text.Encoding.UTF8, StandardErrorEncoding = System.Text.Encoding.UTF8, UseShellExecute = false, CreateNoWindow = true };
             foreach (var arg in new[] { "node_modules/@playwright/test/cli.js", "test", file, "--grep", filter }) process.ArgumentList.Add(arg);
+            foreach (var arg in new[] { "--output", Path.Combine(root.FullName, ".tools", "browser-fixtures", candidate.ToString()), "--reporter=list" }) process.ArgumentList.Add(arg);
             process.Environment["E2E_AI_BACKEND_URL"] = fixture.App.Urls.Single();
             process.Environment["E2E_AI_CANDIDATE_ID"] = candidate.ToString();
             process.Environment["E2E_EMPTY_KIND"] = kind;
+            process.Environment["E2E_PORTFOLIO_PDF"] = Convert.ToBase64String(AiFixture.Pdf);
             using var child = Process.Start(process)!;
             var stdout = child.StandardOutput.ReadToEndAsync(); var stderr = child.StandardError.ReadToEndAsync();
             using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));

@@ -29,6 +29,12 @@ public sealed class CvAnalysis
     public CvAnalysisStatus Status { get; private set; }
     public bool Delivered { get; private set; }
     public bool ExternalProcessingAcknowledged { get; private set; }
+    public string Stage { get; private set; } = "Queued";
+    public void SetStage(Guid lease, string stage) { CheckLease(lease); Stage = stage; }
+    public void RecordPipeline(Guid lease, string extractor, bool structuredPrompt = false)
+    {
+        CheckLease(lease); SchemaVersion = "facts-v2"; PromptVersion = structuredPrompt ? "evidence-v2" : "evidence-v1"; ExtractorVersion = extractor;
+    }
     public DateTime CreatedAtUtc { get; private set; }
     public DateTime NextAttemptAtUtc { get; private set; }
     public DateTime? FinishedAtUtc { get; private set; }
@@ -53,19 +59,19 @@ public sealed class CvAnalysis
     {
         CheckLease(lease);
         if (status is CvAnalysisStatus.Queued or CvAnalysisStatus.Running) throw new ArgumentException("Terminal status required.");
-        Status = status; ResultJson = result; ErrorCode = error; FinishedAtUtc = now; LeaseId = null; LeaseExpiresAtUtc = null;
+        Status = status; Stage = status.ToString(); ResultJson = result; ErrorCode = error; FinishedAtUtc = now; LeaseId = null; LeaseExpiresAtUtc = null;
     }
     public void RequestCancellation(DateTime now)
     {
         if (Status is not (CvAnalysisStatus.Queued or CvAnalysisStatus.Running)) throw new InvalidOperationException("Analysis already finished.");
         CancellationRequested = true;
-        if (Status == CvAnalysisStatus.Queued) { Status = CvAnalysisStatus.Cancelled; FinishedAtUtc = now; }
+        if (Status == CvAnalysisStatus.Queued) { Status = CvAnalysisStatus.Cancelled; Stage = "Cancelled"; FinishedAtUtc = now; }
     }
     public void Retry(decimal reservation, DateTime now, TimeSpan delay, bool acknowledgeUnknown)
     {
         if (Status != CvAnalysisStatus.Failed && Status != CvAnalysisStatus.NoFindings && !(Status == CvAnalysisStatus.OutcomeUnknown && acknowledgeUnknown))
             throw new InvalidOperationException("Analysis cannot be retried without resolving its outcome.");
-        Status = CvAnalysisStatus.Queued; CancellationRequested = false; ErrorCode = null; FinishedAtUtc = null;
+        Status = CvAnalysisStatus.Queued; Stage = "Queued"; CancellationRequested = false; ErrorCode = null; FinishedAtUtc = null;
         ReservedUsd = reservation; ReservationDay = DateOnly.FromDateTime(now); NextAttemptAtUtc = now + delay;
     }
     private void CheckLease(Guid lease)
@@ -102,6 +108,8 @@ public sealed class CvAnalysisReview
     public string Notes { get; set; } = "";
     public DateTime CreatedAtUtc { get; set; }
     public int Revision { get; set; }
+    public int? FactIndex { get; set; }
+    public string? CorrectedValue { get; set; }
 }
 
 public sealed class AiDailyBudget

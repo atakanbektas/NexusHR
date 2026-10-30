@@ -87,14 +87,15 @@ internal sealed class CvAnalysisStore(CandidateDbContext db, IPublishEndpoint pu
         var views = new List<AnalysisView>(); foreach (var run in runs) views.Add(await ViewAsync(run, ct));
         var unavailable = options.Enabled ? await provider.GetUnavailableCodeAsync(options.Model, ct) : null;
         return new(new(options.Enabled, !options.IsLocal && options.AllowExternalProcessing, options.Provider, options.Reservation, unavailable is null, unavailable),
-            await db.CandidateDocuments.Where(x => x.CandidateId == candidateId && x.Type == CandidateDocumentType.Cv).Select(x => (Guid?)x.Id).SingleOrDefaultAsync(ct),
+            await db.CandidateDocuments.Where(x => x.CandidateId == candidateId && x.Type == CandidateDocumentType.Cv && x.IsCurrent).Select(x => (Guid?)x.Id).SingleOrDefaultAsync(ct),
             views, page, await query.CountAsync(ct));
     }
     public async Task<AnalysisView> GetAsync(Guid candidateId, Guid id, CancellationToken ct) => await ViewAsync(await FindAsync(candidateId, id, ct), ct);
     internal async Task<CvAnalysis> FindAsync(Guid candidateId, Guid id, CancellationToken ct) =>
         await db.Set<CvAnalysis>().SingleOrDefaultAsync(x => x.Id == id && x.CandidateId == candidateId, ct) ?? throw new CvAnalysisException(404, "AI.NotFound");
 
-    public async Task<AnalysisView> MutateAsync(Guid candidateId, Guid id, string user, uint version, string action, bool acknowledgeUnknown, string? decision, string? notes, CancellationToken ct)
+    public async Task<AnalysisView> MutateAsync(Guid candidateId, Guid id, string user, uint version, string action, bool acknowledgeUnknown, string? decision, string? notes, CancellationToken ct,
+        int? factIndex = null, string? correctedValue = null)
     {
         ValidateUser(user);
         if (action == "retry") { RequireEnabled(); await RequireReadyAsync(ct); }
@@ -125,10 +126,15 @@ internal sealed class CvAnalysisStore(CandidateDbContext db, IPublishEndpoint pu
             if (run.Status != CvAnalysisStatus.Succeeded) throw new CvAnalysisException(409, "AI.ResultNotAvailable");
             if (run.ResultJson is null || JsonSerializer.Deserialize<CvAnalysisResult>(run.ResultJson, Json)?.Facts.Count is not > 0)
                 throw new CvAnalysisException(409, "AI.EmptyResultCannotBeReviewed");
-            if (decision is not ("approve" or "reject" or "correct") || notes?.Length > 4000 ||
-                (decision == "correct" && string.IsNullOrWhiteSpace(notes))) throw new CvAnalysisException(400, "AI.InvalidReview");
+            var result = JsonSerializer.Deserialize<CvAnalysisResult>(run.ResultJson!, Json)!;
+            if (decision is not ("approve" or "reject" or "correct") || notes?.Length > 4000 || correctedValue?.Length > 500 ||
+                (factIndex.HasValue && (factIndex < 0 || factIndex >= result.Facts.Count)) ||
+                (!factIndex.HasValue && correctedValue is not null) ||
+                (decision == "correct" && (factIndex.HasValue ? string.IsNullOrWhiteSpace(correctedValue) : string.IsNullOrWhiteSpace(notes))))
+                throw new CvAnalysisException(400, "AI.InvalidReview");
             var revision = await db.Set<CvAnalysisReview>().CountAsync(x => x.AnalysisId == id, ct) + 1;
-            db.Add(new CvAnalysisReview { AnalysisId = id, Reviewer = user, Decision = decision, Notes = notes ?? "", CreatedAtUtc = now, Revision = revision });
+            db.Add(new CvAnalysisReview { AnalysisId = id, Reviewer = user, Decision = decision, Notes = notes ?? "", CreatedAtUtc = now, Revision = revision,
+                FactIndex = factIndex, CorrectedValue = decision == "correct" ? correctedValue : null });
             // Force a parent update so stale review versions conflict even when only a child is added.
             db.Entry(run).Property(x => x.FinishedAtUtc).IsModified = true;
         }
@@ -144,7 +150,7 @@ internal sealed class CvAnalysisStore(CandidateDbContext db, IPublishEndpoint pu
         r.CancellationRequested, r.CreatedAtUtc, r.ErrorCode, r.Model, r.ContentHash,
         r.ResultJson is null ? null : JsonSerializer.Deserialize<CvAnalysisResult>(r.ResultJson, Json),
         await db.Set<CvAnalysisReview>().Where(x => x.AnalysisId == r.Id).OrderByDescending(x => x.Revision)
-            .Select(x => new ReviewView(x.Reviewer, x.Decision, x.Notes, x.CreatedAtUtc, x.Revision)).ToListAsync(ct),
+            .Select(x => new ReviewView(x.Reviewer, x.Decision, x.Notes, x.CreatedAtUtc, x.Revision, x.FactIndex, x.CorrectedValue)).ToListAsync(ct),
         await db.Set<CvAnalysisAttempt>().Where(x => x.AnalysisId == r.Id).OrderBy(x => x.Number)
-            .Select(x => new AttemptView(x.Number, x.Outcome, x.InputTokens, x.OutputTokens, x.ReservedUsd, x.UsageCostUsd, x.PriceVersion)).ToListAsync(ct), r.Provider);
+            .Select(x => new AttemptView(x.Number, x.Outcome, x.InputTokens, x.OutputTokens, x.ReservedUsd, x.UsageCostUsd, x.PriceVersion)).ToListAsync(ct), r.Provider, r.Stage);
 }

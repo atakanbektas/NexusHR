@@ -50,20 +50,20 @@ internal sealed class UploadCandidateCvCommandHandler(
             CandidateDocumentType.Cv,
             cancellationToken);
 
-        if (cvExists)
+        if (cvExists && request.ReplacesDocumentId is null)
         {
             return UploadCandidateCvResponse.Failure(
                 "Candidate.CvAlreadyExists",
                 "Aday için daha önce CV yüklenmiş.");
         }
 
-        if (candidate.Status != CandidateStatus.Draft)
+        if (candidate.Status != CandidateStatus.Draft && !(request.ReplacesDocumentId.HasValue && candidate.Status == CandidateStatus.DocumentsPending))
             return UploadCandidateCvResponse.Failure("Candidate.InvalidStatus", "CV upload requires a draft candidate.");
 
         var documentId = Guid.NewGuid();
 
         var objectName =
-            $"candidates/{candidate.Id:N}/cv/{documentId:N}.pdf";
+            $"candidates/{candidate.Id:N}/cv/{documentId:N}{Path.GetExtension(request.FileName).ToLowerInvariant()}";
 
         var document = new CandidateDocument(
             documentId,
@@ -74,7 +74,9 @@ internal sealed class UploadCandidateCvCommandHandler(
             request.ContentType,
             request.FileContent.LongLength);
 
-        await cvUpload.SaveAsync(candidate, document, request.FileContent, cancellationToken);
+        if (request.ReplacesDocumentId is { } previous)
+            await cvUpload.ReplaceAsync(candidate, document, previous, request.FileContent, cancellationToken);
+        else await cvUpload.SaveAsync(candidate, document, request.FileContent, cancellationToken);
 
         return UploadCandidateCvResponse.Success(document.Id);
     }

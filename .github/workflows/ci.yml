@@ -23,12 +23,24 @@ jobs:
           cache: npm
           cache-dependency-path: NexusHR.Web/package-lock.json
       - run: docker compose config --quiet
+      - name: Validate optional OCR and private scanner topology
+        run: docker compose -f docker-compose.yml -f docker-compose.ai.yml -f docker-compose.multimodal.yml -f docker-compose.security.yml --profile ai --profile security config --quiet
       - name: Build MinIO from pinned upstream source
         run: docker compose build candidate-storage
       - run: dotnet restore NexusHR.slnx
       - run: dotnet build NexusHR.slnx --no-restore --configuration Release
       - name: Unit, HTTP security, PostgreSQL and MinIO integration tests
         run: dotnet test NexusHR.slnx --no-build --configuration Release --logger trx --results-directory TestResults
+      - name: Build bounded local OCR image
+        run: docker compose -f docker-compose.yml -f docker-compose.ai.yml -f docker-compose.multimodal.yml --profile ai build cv-ocr
+      - name: Real Turkish/English OCR, decoder and process cancellation checks
+        env:
+          RUN_LOCAL_OCR_TESTS: '1'
+        run: dotnet test NexusHR.Candidate.IntegrationTests --no-build --configuration Release --filter FullyQualifiedName~LocalOcrRuntimeTests --logger trx --results-directory TestResults
+      - name: Real private ClamAV clean and harmless EICAR verification
+        env:
+          RUN_CLAMAV_TESTS: '1'
+        run: dotnet test NexusHR.Candidate.IntegrationTests --no-build --configuration Release --filter FullyQualifiedName~ClamAvRuntimeTests --logger trx --results-directory TestResults
       - name: Check migrations match the model
         run: |
           dotnet tool restore

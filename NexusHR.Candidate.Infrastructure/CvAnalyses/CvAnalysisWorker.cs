@@ -62,7 +62,8 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
             var run = await db.Set<CvAnalysis>().Where(x => x.Status == CvAnalysisStatus.Queued && x.NextAttemptAtUtc <= now &&
                 (x.Delivered || x.CreatedAtUtc < now.AddSeconds(-30))).OrderBy(x => x.CreatedAtUtc).FirstOrDefaultAsync(ct);
             if (run is null) return false;
-            id = run.Id; lease = run.Claim(now, TimeSpan.FromSeconds(options.TimeoutSeconds + 60)); number = run.AttemptCount;
+            id = run.Id; lease = run.Claim(now, TimeSpan.FromSeconds(options.TimeoutSeconds + 180)); number = run.AttemptCount;
+            run.SetStage(lease, "Extracting");
             db.Add(new CvAnalysisAttempt { AnalysisId = id, Number = number, StartedAtUtc = now,
                 ReservedUsd = run.ReservedUsd, PriceVersion = options.EffectivePriceVersion, InputRate = options.EffectiveInputRate, OutputRate = options.EffectiveOutputRate });
             await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
@@ -81,8 +82,18 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
             if (provider.RequiresExternalProcessing && string.IsNullOrWhiteSpace(options.ApiKey)) throw new CvProviderException("AI.ProviderNotConfigured");
             if (run.ReservedUsd < options.Reservation || run.Model != options.Model || run.Provider != options.Provider) throw new CvProviderException("AI.ConfigurationChangedRetryRequired");
             var document = await db.CandidateDocuments.SingleAsync(x => x.Id == run.DocumentId && x.CandidateId == run.CandidateId, ct);
-            var bytes = await scope.ServiceProvider.GetRequiredService<ICandidateDocumentStorage>().DownloadAsync(document.ObjectName, ct);
-            var pages = await scope.ServiceProvider.GetRequiredService<ICvTextExtractor>().ExtractPagesAsync(bytes, ct);
+            byte[] bytes; IReadOnlyList<CvTextPage> pages;
+            using (var inputDeadline = CancellationTokenSource.CreateLinkedTokenSource(ct))
+            {
+                inputDeadline.CancelAfter(TimeSpan.FromSeconds(150));
+                var inputMonitor = MonitorCancellationAsync(scopes, id, lease, inputDeadline);
+                try
+                {
+                    bytes = await scope.ServiceProvider.GetRequiredService<ICandidateDocumentStorage>().DownloadAsync(document.ObjectName, inputDeadline.Token);
+                    pages = await scope.ServiceProvider.GetRequiredService<ICvTextExtractor>().ExtractPagesAsync(bytes, inputDeadline.Token);
+                }
+                finally { await inputDeadline.CancelAsync(); await inputMonitor; }
+            }
             if (pages.Sum(x => (long)x.Text.Length) > options.MaxInputCharacters) throw new InvalidDataException("AI input limit exceeded.");
             var candidate = await db.Candidates.SingleAsync(x => x.Id == run.CandidateId, ct);
             var input = CvAnalysisInput.Prepare(pages, candidate.FirstName, candidate.LastName, candidate.Email, candidate.PhoneNumber);
@@ -110,6 +121,8 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
                 var hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
                 document.RecordContentHash(hash); // Lazy additive backfill for existing immutable CVs.
                 run.SetHash(lease, hash);
+                run.RecordPipeline(lease, pages.Any(p => p.Source.StartsWith("tesseract", StringComparison.Ordinal)) ? "hybrid-tesseract-v1" : "pdf-pages-v1", run.Provider == "Ollama");
+                run.SetStage(lease, "Analyzing");
                 var attempt = await db.Set<CvAnalysisAttempt>().SingleAsync(x => x.AnalysisId == id && x.Number == number, ct);
                 attempt.DispatchedAtUtc = DateTime.UtcNow;
                 await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
@@ -121,6 +134,12 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
             finally { await deadline.CancelAsync(); await monitor; }
             if (response.InputTokens < 0 || response.OutputTokens < 0) throw new InvalidDataException("Invalid usage.");
             EvidenceValidator.Validate(response.Result, pages);
+            response = response with { Result = response.Result with {
+                Facts = response.Result.Facts.Select(f => {
+                    var page = pages.Single(p => p.Number == f.Page);
+                    return f with { Source = page.Source, Regions = page.Words.Where(w => w.Start < f.Start + f.Quote.Length && w.Start + w.Length > f.Start)
+                        .Select(w => new CvEvidenceRegion(w.X, w.Y, w.Width, w.Height)).ToArray() };
+                }).ToArray() } };
             if (response.EvidenceDiagnostics is { } d)
                 metricsLog.LogInformation("CV evidence: proposed={Proposed}, accepted={Accepted}, shapeRejected={ShapeRejected}, pageRejected={PageRejected}, quoteMissing={QuoteMissing}, quoteAmbiguous={QuoteAmbiguous}, valueMissing={ValueMissing}, whitespaceResolved={WhitespaceResolved}, duplicates={Duplicates}",
                     d.Proposed, d.Accepted, d.ShapeRejected, d.PageRejected, d.QuoteMissing, d.QuoteAmbiguous, d.ValueMissing, d.WhitespaceResolved, d.Duplicates);
@@ -135,7 +154,7 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
             {
                 if (input.ImagePages > 0 || input.ExcludedPages > 0)
                     response = response with { Result = response.Result with { Warnings = new[] {
-                        "Yalnızca okunabilir metin içeren sayfalar analiz edildi. Görsel içerik yorumlanmadı; tarama sayfaları için OCR gerekebilir."
+                        "Sonuçlar metin/OCR katmanına dayanır; OCR hataları veya kapsam dışında kalan görseller için kaynak belgeyi kontrol edin."
                     }.Concat(response.Result.Warnings).Distinct().Take(20).ToArray() } };
                 EvidenceValidator.Validate(response.Result, pages);
                 status = CvAnalysisStatus.Succeeded;
@@ -161,6 +180,7 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
                 ex.Code == "AI.OutcomeUnknown" ? CvAnalysisStatus.OutcomeUnknown : CvAnalysisStatus.Failed;
             if (ex.SafeToRetry) retry = ex;
         }
+        catch (CvAnalysisException ex) { status = CvAnalysisStatus.Failed; error = ex.Code; }
         catch (InvalidDataException) { error = "AI.InvalidInputOrEvidence"; }
         catch (Exception) { status = dispatched ? CvAnalysisStatus.OutcomeUnknown : CvAnalysisStatus.Failed; error = dispatched ? "AI.OutcomeUnknown" : "AI.InputUnavailable"; }
 
@@ -178,7 +198,7 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
             decimal? cost = run.Provider == "Ollama" ? 0 : response is { InputTokens: >= 0, OutputTokens: >= 0 } ? (response.InputTokens * attempt.InputRate + response.OutputTokens * attempt.OutputRate) / 1_000_000m :
                 !dispatched || retry is not null ? 0 : null;
             if (run.Provider == "Ollama" && status == CvAnalysisStatus.OutcomeUnknown) { status = CvAnalysisStatus.Failed; error = "AI.OllamaUnavailable"; }
-            if (run.CancellationRequested && (status == CvAnalysisStatus.Succeeded || run.Provider == "Ollama")) status = CvAnalysisStatus.Cancelled;
+            if (run.CancellationRequested && (!dispatched || status == CvAnalysisStatus.Succeeded || run.Provider == "Ollama")) status = CvAnalysisStatus.Cancelled;
             run.Finish(lease, status, status == CvAnalysisStatus.Succeeded ? JsonSerializer.Serialize(response!.Result, CvAnalysisStore.Json) : null, error, DateTime.UtcNow);
             attempt.Outcome = status.ToString(); attempt.FinishedAtUtc = DateTime.UtcNow; attempt.ProviderRequestId = response?.RequestId;
             attempt.InputTokens = response?.InputTokens; attempt.OutputTokens = response?.OutputTokens; attempt.UsageCostUsd = cost;

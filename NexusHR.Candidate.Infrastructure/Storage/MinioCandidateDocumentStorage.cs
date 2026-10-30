@@ -6,7 +6,7 @@ namespace NexusHR.Candidate.Infrastructure.Storage;
 
 internal sealed class MinioCandidateDocumentStorage(
     IMinioClient minioClient,
-    MinioStorageOptions options)
+    MinioStorageOptions options, NexusHR.Candidate.Application.CvAnalyses.ICvDocumentScanner scanner)
     : ICandidateDocumentStorage
 {
     private readonly SemaphoreSlim bucketLock = new(1, 1);
@@ -48,14 +48,20 @@ internal sealed class MinioCandidateDocumentStorage(
             .WithObject(objectName)
             .WithCallbackStream(stream =>
             {
-                stream.CopyTo(memoryStream);
+                var buffer = new byte[8192]; int count;
+                while ((count = stream.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (memoryStream.Length + count > 5 * 1024 * 1024) throw new InvalidDataException("Stored CV exceeds size limit.");
+                    memoryStream.Write(buffer, 0, count);
+                }
             });
 
         await minioClient.GetObjectAsync(
             getObjectArgs,
             cancellationToken);
 
-        return memoryStream.ToArray();
+        var content = memoryStream.ToArray(); await scanner.ScanAsync(content, cancellationToken); return content;
     }
 
     public async Task DeleteAsync(

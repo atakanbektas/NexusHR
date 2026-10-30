@@ -52,7 +52,10 @@ internal sealed class CandidateDocumentConfiguration
             document.CandidateId,
             document.Type
         })
-            .IsUnique();
+            .IsUnique().HasFilter("\"IsCurrent\" = TRUE");
+        builder.Property(x => x.IsCurrent).HasDefaultValue(true);
+        builder.Property(x => x.Revision).HasDefaultValue(1);
+        builder.HasIndex(x => new { x.CandidateId, x.Type, x.Revision }).IsUnique();
 
         builder.HasOne<CandidateEntity>()
             .WithMany()
