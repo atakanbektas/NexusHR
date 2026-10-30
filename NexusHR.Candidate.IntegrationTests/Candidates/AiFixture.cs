@@ -76,13 +76,14 @@ public sealed class AiFixture : IAsyncLifetime
         if (roles is not null) { client.DefaultRequestHeaders.Add("X-Ai-Test-User", user); client.DefaultRequestHeaders.Add("X-Ai-Test-Roles", roles); }
         return client;
     }
-    public async Task<(Guid Candidate, Guid Document)> SeedAsync()
+    public async Task<(Guid Candidate, Guid Document)> SeedAsync(byte[]? content = null, string firstName = "Synthetic", string lastName = "Person")
     {
+        content ??= Pdf;
         await using var scope = Scopes.CreateAsyncScope(); var db = scope.ServiceProvider.GetRequiredService<CandidateDbContext>();
-        var candidate = new Domain.Candidates.Candidate(Guid.NewGuid(), "Synthetic", "Person", $"{Guid.NewGuid():N}@example.test", "05555555555");
-        var doc = new CandidateDocument(Guid.NewGuid(), candidate.Id, CandidateDocumentType.Cv, "synthetic.pdf", $"test/{Guid.NewGuid():N}.pdf", "application/pdf", Pdf.Length);
+        var candidate = new Domain.Candidates.Candidate(Guid.NewGuid(), firstName, lastName, $"{Guid.NewGuid():N}@example.test", "05555555555");
+        var doc = new CandidateDocument(Guid.NewGuid(), candidate.Id, CandidateDocumentType.Cv, "synthetic.pdf", $"test/{Guid.NewGuid():N}.pdf", "application/pdf", content.Length);
         db.Add(candidate); db.Add(doc); await db.SaveChangesAsync();
-        await scope.ServiceProvider.GetRequiredService<ICandidateDocumentStorage>().UploadAsync(doc.ObjectName, Pdf, "application/pdf", default);
+        await scope.ServiceProvider.GetRequiredService<ICandidateDocumentStorage>().UploadAsync(doc.ObjectName, content, "application/pdf", default);
         return (candidate.Id, doc.Id);
     }
     public async Task WaitAsync(Func<CandidateDbContext, Task<bool>> condition)
@@ -115,6 +116,23 @@ public sealed class AiFixture : IAsyncLifetime
             pdf += $"trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF"; return Encoding.ASCII.GetBytes(pdf);
         }
     }
+    internal static byte[] ContactOnlyPdf => MinimalPdf(
+        "BT /F1 12 Tf 50 750 Td (Ada Lovelace) Tj 0 -20 Td (synthetic-demo-000@example.test) Tj 0 -20 Td (05555555555) Tj ET");
+    internal static byte[] ImageOnlyPdf => MinimalPdf("q 100 0 0 100 50 600 cm /Im1 Do Q", true);
+    private static byte[] MinimalPdf(string text, bool image = false)
+    {
+        var resource = image ? "/XObject << /Im1 4 0 R >>" : "/Font << /F1 4 0 R >>";
+        var objects = new[] { "<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            $"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << {resource} >> /Contents 5 0 R >>",
+            image ? "<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /ASCIIHexDecode /Length 7 >>\nstream\n000000>\nendstream" :
+                "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+            $"<< /Length {text.Length} >>\nstream\n{text}\nendstream" };
+        var pdf = "%PDF-1.4\n"; var offsets = new List<int>();
+        for (var i = 0; i < objects.Length; i++) { offsets.Add(pdf.Length); pdf += $"{i + 1} 0 obj\n{objects[i]}\nendobj\n"; }
+        var xref = pdf.Length; pdf += "xref\n0 6\n0000000000 65535 f \n";
+        pdf += string.Concat(offsets.Select(x => $"{x:0000000000} 00000 n \n"));
+        return Encoding.ASCII.GetBytes(pdf + $"trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF");
+    }
     private sealed class Identity(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
         : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
     {
@@ -132,6 +150,8 @@ public sealed class FakeCvProvider : ICvAnalysisProvider
 {
     public bool RequiresExternalProcessing => false;
     public int Calls;
+    public string? UnavailableCode;
+    public Task<string?> GetUnavailableCodeAsync(string model, CancellationToken ct) => Task.FromResult(UnavailableCode);
     public Func<IReadOnlyList<CvTextPage>, CancellationToken, Task<CvProviderResponse>>? Override;
     public Task<CvProviderResponse> AnalyzeAsync(IReadOnlyList<CvTextPage> pages, string model, CancellationToken ct)
     {

@@ -1,0 +1,1 @@
+deploy/ollama/*.sh text eol=lf

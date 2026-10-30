@@ -303,6 +303,133 @@ public sealed class CvAnalysisIntegrationTests(AiFixture f) : IClassFixture<AiFi
         Assert.Equal(DateOnly.FromDateTime(DateTime.UtcNow), (await context.Set<CvAnalysis>().SingleAsync(x => x.Id == run.Id)).ReservationDay);
     }
 
+    [Fact]
+    public async Task LocalProviderHasZeroPaidReservationButStillEnforcesUserQuotaAndReadiness()
+    {
+        var provider = f.Options.Provider; var limit = f.Options.RequestsPerUserPerDay;
+        f.Options.Provider = "Ollama"; f.Options.RequestsPerUserPerDay = 1;
+        try
+        {
+            var (candidate, document) = await f.SeedAsync(); using var client = f.Client(user: Guid.NewGuid().ToString());
+            f.Provider.UnavailableCode = "AI.ModelNotReady";
+            client.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, (await client.PostAsJsonAsync(Path(candidate), new { documentId = document })).StatusCode);
+            client.DefaultRequestHeaders.Remove("Idempotency-Key"); f.Provider.UnavailableCode = null;
+            decimal before;
+            await using (var scope = f.Scopes.CreateAsyncScope()) before = await scope.ServiceProvider.GetRequiredService<CandidateDbContext>()
+                .Set<AiDailyBudget>().SumAsync(x => x.CommittedUsd);
+            var run = await Create(client, candidate, document); Assert.Equal("Ollama", run.Provider);
+            await Deliver(run.Id); await Process(); run = await Get(client, candidate, run.Id);
+            Assert.Equal("Succeeded", run.Status); var attempt = Assert.Single(run.Attempts);
+            Assert.Equal(0, attempt.ReservedUsd); Assert.Equal(0m, attempt.UsageCostUsd);
+            client.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
+            Assert.Equal(429, (int)(await client.PostAsJsonAsync(Path(candidate), new { documentId = document })).StatusCode);
+            await using var verification = f.Scopes.CreateAsyncScope();
+            Assert.Equal(before, await verification.ServiceProvider.GetRequiredService<CandidateDbContext>().Set<AiDailyBudget>().SumAsync(x => x.CommittedUsd));
+        }
+        finally { f.Options.Provider = provider; f.Options.RequestsPerUserPerDay = limit; f.Provider.UnavailableCode = null; }
+    }
+
+    [Fact]
+    public async Task LocalRunningCancellationStopsTheCallAndPersistsZeroCost()
+    {
+        var provider = f.Options.Provider; f.Options.Provider = "Ollama";
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        f.Provider.Override = async (_, ct) => { entered.SetResult(); await Task.Delay(Timeout.Infinite, ct); throw new InvalidOperationException(); };
+        try
+        {
+            var (candidate, document) = await f.SeedAsync(); using var client = f.Client(); var run = await Create(client, candidate, document);
+            await Deliver(run.Id); var running = CvAnalysisWorker.ProcessNextAsync(f.Scopes, f.Options, default);
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10)); await Cancel(client, candidate, await Get(client, candidate, run.Id));
+            await running.WaitAsync(TimeSpan.FromSeconds(10)); run = await Get(client, candidate, run.Id);
+            Assert.Equal("Cancelled", run.Status); Assert.Equal(0m, Assert.Single(run.Attempts).UsageCostUsd);
+        }
+        finally { f.Options.Provider = provider; f.Provider.Override = null; }
+    }
+
+    [Fact]
+    public async Task RestartedLocalWorkerRecoversDispatchedJobsAsRetryableFailuresWithoutUnknownCharges()
+    {
+        var provider = f.Options.Provider; f.Options.Provider = "Ollama";
+        try
+        {
+            var (candidate, document) = await f.SeedAsync(); using var client = f.Client(); var run = await Create(client, candidate, document);
+            await Deliver(run.Id);
+            await using (var scope = f.Scopes.CreateAsyncScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<CandidateDbContext>(); var entity = await db.Set<CvAnalysis>().SingleAsync(x => x.Id == run.Id);
+                entity.Claim(DateTime.UtcNow, TimeSpan.FromSeconds(1)); db.Entry(entity).Property(x => x.LeaseExpiresAtUtc).CurrentValue = DateTime.UtcNow.AddMinutes(-1);
+                db.Add(new CvAnalysisAttempt { AnalysisId = run.Id, Number = 1, StartedAtUtc = DateTime.UtcNow.AddMinutes(-1), DispatchedAtUtc = DateTime.UtcNow.AddMinutes(-1) });
+                await db.SaveChangesAsync();
+            }
+            await CvAnalysisWorker.RecoverAsync(f.Scopes, default); run = await Get(client, candidate, run.Id);
+            Assert.Equal("Failed", run.Status); Assert.Equal(0m, Assert.Single(run.Attempts).UsageCostUsd);
+            client.DefaultRequestHeaders.TryAddWithoutValidation("If-Match", $"\"{run.Version}\"");
+            Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"{Path(candidate)}/{run.Id}/retry", new { acknowledgePossibleDuplicateCharge = false })).StatusCode);
+            await Process(); Assert.Equal("Succeeded", (await Get(client, candidate, run.Id)).Status);
+        }
+        finally { f.Options.Provider = provider; }
+    }
+
+    [Fact]
+    public async Task ContactOnlyPdfStopsBeforeModelCallAndIsNotSuccessful()
+    {
+        var provider = f.Options.Provider; f.Options.Provider = "Ollama";
+        try
+        {
+            var (candidate, document) = await f.SeedAsync(AiFixture.ContactOnlyPdf, "Ada", "Lovelace");
+            using var client = f.Client(); var before = f.Provider.Calls; var run = await Create(client, candidate, document);
+            await Deliver(run.Id); await Process(); run = await Get(client, candidate, run.Id);
+            Assert.Equal("NoFindings", run.Status); Assert.Equal("AI.NoAnalyzableText", run.ErrorCode);
+            Assert.Equal(before, f.Provider.Calls); Assert.Null(run.Result); Assert.Equal(0m, Assert.Single(run.Attempts).UsageCostUsd);
+            await using var scope = f.Scopes.CreateAsyncScope(); var db = scope.ServiceProvider.GetRequiredService<CandidateDbContext>();
+            Assert.Null((await db.Set<CvAnalysisAttempt>().SingleAsync(x => x.AnalysisId == run.Id)).DispatchedAtUtc);
+        }
+        finally { f.Options.Provider = provider; }
+    }
+
+    [Fact]
+    public async Task ReadableProfessionalCvWithEmptyModelFactsIsNoFindingsAndRetainsUsageAndRetryGuards()
+    {
+        f.Provider.Override = (_, _) => Task.FromResult(new CvProviderResponse(new([], ["No content provided for PAGE 1", "No facts found for summary, skill, employment, education, language, certification"]), "empty-test", 100, 50));
+        try
+        {
+            var (candidate, document) = await f.SeedAsync(); using var client = f.Client(); var key = Guid.NewGuid().ToString();
+            var run = await Create(client, candidate, document, key); await Deliver(run.Id); await Process(); run = await Get(client, candidate, run.Id);
+            Assert.Equal("NoFindings", run.Status); Assert.Equal("AI.NoSupportedFacts", run.ErrorCode); Assert.Null(run.Result);
+            Assert.Equal(.0002m, Assert.Single(run.Attempts).UsageCostUsd); Assert.Equal("NoFindings", run.Attempts[0].Outcome);
+            Assert.Equal(run.Id, (await Create(client, candidate, document, key)).Id);
+            client.DefaultRequestHeaders.TryAddWithoutValidation("If-Match", $"\"{run.Version}\"");
+            Assert.Equal(HttpStatusCode.Conflict, (await client.PutAsJsonAsync($"{Path(candidate)}/{run.Id}/review", new { decision = "approve" })).StatusCode);
+            Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"{Path(candidate)}/{run.Id}/retry", new { acknowledgePossibleDuplicateCharge = false })).StatusCode);
+            f.Provider.Override = null; await Process(); Assert.Equal("Succeeded", (await Get(client, candidate, run.Id)).Status);
+        }
+        finally { f.Provider.Override = null; }
+    }
+
+    [Fact]
+    public async Task ImageOnlyPdfFailsWithOcrMessageWithoutCallingTheModel()
+    {
+        var (candidate, document) = await f.SeedAsync(AiFixture.ImageOnlyPdf); using var client = f.Client();
+        var before = f.Provider.Calls; var run = await Create(client, candidate, document); await Deliver(run.Id); await Process();
+        run = await Get(client, candidate, run.Id); Assert.Equal("Failed", run.Status); Assert.Equal("AI.NoReadableText", run.ErrorCode);
+        Assert.Equal(before, f.Provider.Calls); Assert.Equal(0m, Assert.Single(run.Attempts).UsageCostUsd);
+    }
+
+    [Fact]
+    public async Task LegacyEmptySuccessCannotBeApprovedAndIsNotRewritten()
+    {
+        var (candidate, document) = await f.SeedAsync(); using var client = f.Client();
+        var legacy = new CvAnalysis(candidate, document, "test-hr", Guid.NewGuid().ToString(), f.Options.Model, "OpenAI", 0, DateTime.UtcNow);
+        var lease = legacy.Claim(DateTime.UtcNow, TimeSpan.FromMinutes(1));
+        legacy.Finish(lease, CvAnalysisStatus.Succeeded, "{\"facts\":[],\"warnings\":[]}", null, DateTime.UtcNow);
+        await using (var scope = f.Scopes.CreateAsyncScope()) { var db = scope.ServiceProvider.GetRequiredService<CandidateDbContext>(); db.Add(legacy); await db.SaveChangesAsync(); }
+        var run = await Get(client, candidate, legacy.Id); client.DefaultRequestHeaders.TryAddWithoutValidation("If-Match", $"\"{run.Version}\"");
+        var review = await client.PutAsJsonAsync($"{Path(candidate)}/{run.Id}/review", new { decision = "approve" });
+        Assert.Equal(HttpStatusCode.Conflict, review.StatusCode); Assert.Contains("AI.EmptyResultCannotBeReviewed", await review.Content.ReadAsStringAsync());
+        Assert.Equal("Succeeded", (await Get(client, candidate, run.Id)).Status); // Preserve the historical audit record.
+    }
+
     private async Task Process() => Assert.True(await CvAnalysisWorker.ProcessNextAsync(f.Scopes, f.Options, default));
     private Task Deliver(Guid id) => f.WaitAsync(db => db.Set<CvAnalysis>().AnyAsync(x => x.Id == id && x.Delivered));
     private static string Path(Guid candidate) => $"/api/candidates/{candidate}/cv-analyses";

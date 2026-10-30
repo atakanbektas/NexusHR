@@ -2,7 +2,18 @@ using NexusHR.Candidate.Domain.CvAnalyses;
 
 namespace NexusHR.Candidate.Application.CvAnalyses;
 
-public sealed record CvTextPage(int Number, string Text);
+public sealed record CvTextPage(int Number, string Text)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int ImageCount { get; init; }
+}
+public sealed class CvTextUnavailableException(int pages, int imagePages, int characters) : Exception(
+    "PDF’den okunabilir metin çıkarılamadı. Görsel/tarama tabanlı PDF için OCR gerekir; bu sürümde OCR desteklenmiyor.")
+{
+    public int PageCount { get; } = pages;
+    public int ImagePageCount { get; } = imagePages;
+    public int CharacterCount { get; } = characters;
+}
 public interface ICvTextExtractor
 {
     Task<IReadOnlyList<CvTextPage>> ExtractPagesAsync(byte[] pdf, CancellationToken ct);
@@ -13,6 +24,7 @@ public sealed record CvProviderResponse(CvAnalysisResult Result, string RequestI
 public interface ICvAnalysisProvider
 {
     bool RequiresExternalProcessing => true;
+    Task<string?> GetUnavailableCodeAsync(string model, CancellationToken ct) => Task.FromResult<string?>(null);
     Task<CvProviderResponse> AnalyzeAsync(IReadOnlyList<CvTextPage> pages, string model, CancellationToken ct);
 }
 public sealed class CvProviderException(string code, bool safeToRetry = false, TimeSpan? retryAfter = null) : Exception(code)
@@ -26,11 +38,12 @@ public sealed class CvAnalysisException(int status, string code) : Exception(cod
     public int Status { get; } = status;
     public string Code { get; } = code;
 }
-public sealed record AnalysisSettings(bool Enabled, bool ExternalProcessingAllowed, string Provider, decimal MaxReservationUsd);
+public sealed record AnalysisSettings(bool Enabled, bool ExternalProcessingAllowed, string Provider, decimal MaxReservationUsd,
+    bool Ready = true, string? UnavailableCode = null);
 public sealed record AnalysisHistory(AnalysisSettings Settings, Guid? DocumentId, IReadOnlyList<AnalysisView> Items, int Page, int TotalCount);
 public sealed record AnalysisView(Guid Id, Guid DocumentId, string Status, uint Version, bool CancellationRequested,
     DateTime CreatedAtUtc, string? ErrorCode, string Model, string? ContentHash, CvAnalysisResult? Result,
-    IReadOnlyList<ReviewView> Reviews, IReadOnlyList<AttemptView> Attempts);
+    IReadOnlyList<ReviewView> Reviews, IReadOnlyList<AttemptView> Attempts, string Provider = "OpenAI");
 public sealed record ReviewView(string Reviewer, string Decision, string Notes, DateTime CreatedAtUtc, int Revision);
 public sealed record AttemptView(int Number, string Outcome, int? InputTokens, int? OutputTokens, decimal ReservedUsd, decimal? UsageCostUsd, string PriceVersion);
 
@@ -50,7 +63,7 @@ public static class EvidenceValidator
             result.Warnings.Any(x => x is null || x.Length > 500)) throw new InvalidDataException("Invalid analysis shape.");
         foreach (var fact in result.Facts)
         {
-            if (fact is null || fact.Category is not ("skill" or "employment" or "education" or "language" or "certification") ||
+            if (fact is null || fact.Category is not ("summary" or "skill" or "employment" or "education" or "language" or "certification") ||
                 string.IsNullOrWhiteSpace(fact.Value) || fact.Value.Length > 500 || string.IsNullOrWhiteSpace(fact.Quote) || fact.Quote.Length > 1500)
                 throw new InvalidDataException("Invalid fact.");
             var page = pages.SingleOrDefault(x => x.Number == fact.Page);

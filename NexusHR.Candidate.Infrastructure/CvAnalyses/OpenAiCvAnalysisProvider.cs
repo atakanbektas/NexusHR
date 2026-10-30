@@ -28,6 +28,7 @@ internal sealed class OpenAiCvAnalysisProvider(HttpClient http, CvAnalysisOption
     {
         if (!options.Enabled || !options.AllowExternalProcessing) throw new CvProviderException("AI.ExternalProcessingDisabled");
         if (string.IsNullOrWhiteSpace(options.ApiKey)) throw new CvProviderException("AI.ProviderNotConfigured");
+        if (!pages.Any(CvAnalysisInput.HasReadableText)) throw new CvProviderException("AI.NoAnalyzableText");
         using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/responses");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiKey);
         request.Content = JsonContent.Create(new
