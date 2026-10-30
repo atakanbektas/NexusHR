@@ -82,4 +82,11 @@ public sealed class CandidateDocument
     public long SizeBytes { get; private set; }
 
     public DateTime UploadedAtUtc { get; private set; }
+    public string? ContentHash { get; private set; }
+    public void RecordContentHash(string hash)
+    {
+        if (hash.Length != 64 || hash.Any(c => !Uri.IsHexDigit(c))) throw new ArgumentException("Invalid SHA-256.");
+        if (ContentHash is not null && ContentHash != hash) throw new InvalidOperationException("Immutable document content changed.");
+        ContentHash = hash;
+    }
 }

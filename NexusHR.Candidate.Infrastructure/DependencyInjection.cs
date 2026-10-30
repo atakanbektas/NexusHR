@@ -1,4 +1,6 @@
-﻿using MassTransit;
+using NexusHR.Candidate.Application.CvAnalyses;
+using NexusHR.Candidate.Infrastructure.CvAnalyses;
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -79,8 +81,17 @@ public static class DependencyInjection
             options =>
                 options.UseNpgsql(connectionString));
 
+        var aiOptions = configuration.GetSection("CvAnalysis").Get<CvAnalysisOptions>() ?? new();
+        aiOptions.Validate();
+        services.AddSingleton(aiOptions);
+        services.AddScoped<CvAnalysisStore>();
+        services.AddScoped<ICvAnalysisStore>(sp => sp.GetRequiredService<CvAnalysisStore>());
+        services.AddScoped<ICvTextExtractor, PdfCvTextExtractor>();
+        services.AddHttpClient<ICvAnalysisProvider, OpenAiCvAnalysisProvider>(http => http.Timeout = TimeSpan.FromSeconds(aiOptions.TimeoutSeconds));
+        services.AddHostedService<CvAnalysisWorker>();
         services.AddMassTransit(configurator =>
         {
+            configurator.AddConsumer<CvAnalysisConsumer>().ExcludeFromConfigureEndpoints();
             configurator
                 .AddEntityFrameworkOutbox<CandidateDbContext>(
                     outbox =>
@@ -93,7 +104,7 @@ public static class DependencyInjection
                 (context, rabbitMq) =>
                 {
                     rabbitMq.Host(
-                        rabbitMqHost,
+                        rabbitMqHost, ushort.Parse(rabbitMqSection["Port"] ?? "5672"),
                         rabbitMqVirtualHost,
                         host =>
                         {
@@ -104,6 +115,12 @@ public static class DependencyInjection
                                 rabbitMqPassword);
                         });
 
+                    rabbitMq.ReceiveEndpoint("candidate-cv-analysis", endpoint =>
+                    {
+                        endpoint.UseMessageRetry(retry => retry.Intervals(1000, 5000, 15000));
+                        endpoint.UseEntityFrameworkOutbox<CandidateDbContext>(context);
+                        endpoint.ConfigureConsumer<CvAnalysisConsumer>(context);
+                    });
                     rabbitMq.ConfigureEndpoints(
                         context);
                 });

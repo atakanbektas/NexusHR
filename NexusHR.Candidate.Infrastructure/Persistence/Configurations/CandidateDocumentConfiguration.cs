@@ -14,6 +14,7 @@ internal sealed class CandidateDocumentConfiguration
         EntityTypeBuilder<CandidateDocumentEntity> builder)
     {
         builder.ToTable("candidate_documents");
+        builder.Property(document => document.ContentHash).HasMaxLength(64);
 
         builder.HasKey(document => document.Id);
 

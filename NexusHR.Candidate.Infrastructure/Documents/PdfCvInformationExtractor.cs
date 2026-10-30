@@ -1,53 +1,25 @@
-﻿using System.Text;
 using System.Text.RegularExpressions;
 using NexusHR.Candidate.Application.Abstractions.Documents;
-using UglyToad.PdfPig;
-using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
 
 namespace NexusHR.Candidate.Infrastructure.Documents;
 
-internal sealed class PdfCvInformationExtractor
+internal sealed class PdfCvInformationExtractor(NexusHR.Candidate.Application.CvAnalyses.ICvTextExtractor textExtractor)
     : ICvInformationExtractor
 {
     private static readonly Regex EmailRegex = new(
         @"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromSeconds(1));
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     private static readonly Regex PhoneRegex = new(
         @"(?:\+?90|0)?\s*\(?5\d{2}\)?[\s.-]*\d{3}[\s.-]*\d{2}[\s.-]*\d{2}",
         RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
-    public Task<ExtractedCandidateDraft> ExtractAsync(
+    public async Task<ExtractedCandidateDraft> ExtractAsync(
         byte[] fileContent,
         CancellationToken cancellationToken)
     {
-        ValidatePdfSignature(fileContent);
-
-        var textBuilder = new StringBuilder();
-
-        using var document = PdfDocument.Open(fileContent);
-
-        if (document.NumberOfPages > 50)
-            throw new InvalidDataException("CV must contain no more than 50 pages.");
-
-        foreach (var page in document.GetPages())
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var pageText = ContentOrderTextExtractor.GetText(page);
-
-            textBuilder.AppendLine(pageText);
-            if (textBuilder.Length > 500_000)
-                throw new InvalidDataException("CV text exceeds the extraction limit.");
-        }
-
-        var text = textBuilder.ToString();
-
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            throw new InvalidDataException(
-                "PDF içerisinden okunabilir metin çıkarılamadı.");
-        }
+        var pages = await textExtractor.ExtractPagesAsync(fileContent, cancellationToken);
+        var text = string.Concat(pages.Select(page => page.Text + Environment.NewLine));
 
         var email = ExtractEmail(text);
         var phoneNumber = ExtractPhoneNumber(text);
@@ -59,27 +31,7 @@ internal sealed class PdfCvInformationExtractor
             email,
             phoneNumber);
 
-        return Task.FromResult(draft);
-    }
-
-    private static void ValidatePdfSignature(byte[] fileContent)
-    {
-        if (fileContent.Length < 5)
-        {
-            throw new InvalidDataException(
-                "Geçersiz PDF dosyası.");
-        }
-
-        var signature = Encoding.ASCII.GetString(
-            fileContent,
-            0,
-            5);
-
-        if (signature != "%PDF-")
-        {
-            throw new InvalidDataException(
-                "Yüklenen dosya geçerli bir PDF değil.");
-        }
+        return draft;
     }
 
     private static string? ExtractEmail(string text)

@@ -22,8 +22,10 @@ internal sealed class GetCandidatesQueryHandler(
             _ => request.PageSize
         };
 
-        var candidates = await candidateRepository.GetPageAsync(
-            skip: (page - 1) * pageSize,
+        // An extreme client-supplied page must never wrap into a negative/earlier offset.
+        var offset = ((long)page - 1) * pageSize;
+        var candidates = offset > int.MaxValue ? [] : await candidateRepository.GetPageAsync(
+            skip: (int)offset,
             take: pageSize,
             search: request.Search,
             status: request.Status,

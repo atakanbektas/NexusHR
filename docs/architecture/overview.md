@@ -27,3 +27,7 @@ Keycloak OIDC/PKCE authenticates the browser. Gateway and APIs independently enf
 Shared Hosting provides JSON logs, ProblemDetails with compatible code/errors fields, correlation IDs, health checks and optional OTLP export. Compose retains named volumes; migrations run automatically in Development only unless explicitly enabled. Production schema changes need a controlled rollout.
 
 Limits: SMTP may duplicate mail, PDF parsing is not antivirus/OCR, MinIO upstream is archived, and single-machine Compose is not an HA/production deployment. See README, deployment notes and current verification report.
+
+## Optional CV analysis
+
+Candidate also owns optional asynchronous CV analysis; it never gates verification or Hiring. Request state and budget reservation commit with the bus Outbox, a short EF Inbox marks delivery, and a separate leased worker invokes the provider outside DB transactions. Unknown external outcomes retain budget and require explicit retry acknowledgement. Read [ADR 004](../adr/004-async-cv-analysis.md) and the [runbook](../ai-cv-analysis.md). The feature and external processing are disabled by default.
