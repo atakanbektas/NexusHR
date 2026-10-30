@@ -144,3 +144,7 @@ Gerçek E2E sentetik Türkçe HTML'den Chromium ile PDF üretir, mevcut formdan 
 GitHub'da `Ollama real-model validation (manual)` workflow'u aynı opt-in doğrulamayı ayrı bir hosted runner'da yapar. Normal `verify` işine büyük model indirmesi eklenmemiştir. Hosted compute/disk sınırları ve Actions kullanım maliyeti harici AI API ücretiyle aynı şey değildir; yerel model kullanımı ücretli LLM endpoint'i çağırmaz.
 
 Resmi sözleşmeler: [Ollama Docker](https://docs.ollama.com/docker), [native chat API](https://docs.ollama.com/api/chat), [structured outputs](https://docs.ollama.com/capabilities/structured-outputs), [qwen3:4b model kaydı](https://ollama.com/library/qwen3:4b).
+
+## Kaynak alıntısı yüzünden `AI.InvalidResponse`
+
+Metin çıkarılmış olsa da model boşluk/satır sonlarını değiştirebilir veya kanıtsız bir değer önerebilir. Adapter her bulguyu ayrı doğrular: yalnızca tekil kaynak eşleşmesi ve boşluk farklarının özgün UTF-16 konumlarına geri eşlenmesi kabul edilir. Belirsiz/kanıtsız bulgular gösterilmez; geçerli komşu bulgular korunur. Hiç bulgu kalmazsa `NoFindings`, bozuk JSON/yanıt zarfında `Failed` kullanılır. Model/prompt/şema ve son EvidenceValidator korundu. Ayrıntılı kök neden, 5 Türkçe + 5 İngilizce gerçek model sonucu ve tekrar üretim komutları: [Ollama evidence fix](audits/ollama-evidence-fix.md).

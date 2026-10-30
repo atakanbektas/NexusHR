@@ -15,6 +15,36 @@ namespace NexusHR.Candidate.IntegrationTests.Candidates;
 
 public sealed class CvAnalysisIntegrationTests(AiFixture f) : IClassFixture<AiFixture>
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task NativePartialEvidenceIsPersistedButAllRejectedEvidenceIsNoFindings(bool includeValid)
+    {
+        var (candidate, document) = await f.SeedAsync(); using var client = f.Client();
+        var key = Guid.NewGuid().ToString(); var run = await Create(client, candidate, document, key);
+        var original = f.Provider.Override;
+        f.Provider.Override = async (pages, ct) =>
+        {
+            var facts = new List<object> { new { category = "skill", value = "Invented", page = 1, quote = "Unsupported phrase" } };
+            if (includeValid) facts.Add(new { category = "skill", value = "C#", page = 1, quote = "C#" });
+            using var http = new HttpClient(new OllamaEvidenceRegressionTests.NativeReply(System.Text.Json.JsonSerializer.Serialize(new { facts, warnings = Array.Empty<string>() })))
+                { BaseAddress = new Uri("http://ollama:11434") };
+            return await new OllamaCvAnalysisProvider(http, new() { Enabled = true, Provider = "Ollama", Model = "qwen3:4b" }).AnalyzeAsync(pages, "qwen3:4b", ct);
+        };
+        try { await Deliver(run.Id); Assert.True(await CvAnalysisWorker.ProcessNextAsync(f.Scopes, f.Options, default)); }
+        finally { f.Provider.Override = original; }
+        var result = await Get(client, candidate, run.Id);
+        Assert.Equal(includeValid ? "Succeeded" : "NoFindings", result.Status);
+        if (includeValid)
+        {
+            Assert.Equal("C#", Assert.Single(result.Result!.Facts).Value);
+            Assert.Contains(result.Result.Warnings, w => w.Contains("1 bulgu", StringComparison.Ordinal));
+        }
+        else { Assert.Null(result.Result); Assert.Equal("AI.NoSupportedFacts", result.ErrorCode); }
+        var before = f.Provider.Calls;
+        Assert.Equal(run.Id, (await Create(client, candidate, document, key)).Id);
+        Assert.Equal(before, f.Provider.Calls); Assert.Single(result.Attempts);
+    }
     [Fact]
     public async Task OutboxInboxFakeProviderEvidenceAndHumanReviewCompleteWithoutChangingCandidate()
     {
