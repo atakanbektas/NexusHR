@@ -1,10 +1,7 @@
-# Screenshot placeholders
+# Synthetic browser capture
 
-No screenshots are claimed as delivered yet. Capture synthetic-data views after a successful demo:
+![CV evidence, document preview and human review](ai-review.png)
 
-1. Candidate list and CV extraction/review.
-2. Offer preparation and MailHog email.
-3. Anonymous acceptance confirmation.
-4. Onboarding task progress/completion.
+Captured by Playwright `portfolio-review` against the frontend and isolated PostgreSQL/RabbitMQ/MinIO backend with a deterministic test provider. All displayed records are synthetic. Native Qwen/OCR evidence is reported separately.
 
-Exclude bearer tokens, offer URLs, credentials and real candidate information.
+Regenerate deliberately with `CAPTURE_PORTFOLIO=1` and `RUN_AI_BROWSER_TESTS=1` when running `AiBrowserTests`. Ordinary runs do not overwrite documentation. Never capture live candidates, credentials, offer links or tokens.
