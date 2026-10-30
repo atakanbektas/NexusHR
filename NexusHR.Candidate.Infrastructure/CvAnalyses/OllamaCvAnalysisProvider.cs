@@ -85,27 +85,35 @@ internal sealed class OllamaCvAnalysisProvider(HttpClient http, CvAnalysisOption
             var root = json.RootElement;
             if (!root.GetProperty("done").GetBoolean() || root.GetProperty("done_reason").GetString() != "stop")
                 throw new CvProviderException("AI.IncompleteResponse");
-            var wire = JsonSerializer.Deserialize<WireResult>(root.GetProperty("message").GetProperty("content").GetString()!,
-                new JsonSerializerOptions(CvAnalysisStore.Json) { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow }) ?? throw new JsonException();
-            if (wire.Facts is null || wire.Warnings is null || wire.Facts.Count > 100) throw new JsonException();
-            // The wire contract asks for quotes, not model-guessed character arithmetic.
-            // Resolve only literal source text; no fuzzy correction or fabricated completion.
-            var facts = wire.Facts.Select(f =>
+            var jsonOptions = new JsonSerializerOptions(CvAnalysisStore.Json) { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow };
+            var wire = JsonSerializer.Deserialize<WireResult>(root.GetProperty("message").GetProperty("content").GetString()!, jsonOptions) ?? throw new JsonException();
+            if (wire.Facts is null || wire.Warnings is null || wire.Facts.Count > 100 || wire.Warnings.Count > 20 || wire.Warnings.Any(w => w is null || w.Length > 500))
+                throw new CvProviderException("AI.InvalidResponse", stage: "SchemaEnvelope");
+            var facts = new List<CvFact>(); var rejections = new List<EvidenceRejection>(); int normalized = 0, duplicates = 0;
+            foreach (var element in wire.Facts)
             {
-                if (f is null || string.IsNullOrWhiteSpace(f.Quote) || string.IsNullOrWhiteSpace(f.Value)) throw new JsonException();
-                var page = pages.SingleOrDefault(p => p.Number == f.Page) ?? throw new InvalidDataException("Unknown evidence page.");
-                var start = page.Text.IndexOf(f.Quote, StringComparison.Ordinal);
-                if (start < 0) throw new InvalidDataException("Quote is not in source.");
-                return new CvFact(f.Category, f.Value, f.Page, start, f.Quote);
-            }).ToArray();
-            var result = new CvAnalysisResult(facts, wire.Warnings);
+                WireFact? f;
+                try { f = element.Deserialize<WireFact>(jsonOptions); }
+                catch (JsonException) { rejections.Add(EvidenceRejection.Shape); continue; }
+                if (f is null) { rejections.Add(EvidenceRejection.Shape); continue; }
+                var resolved = OllamaEvidenceResolver.Resolve(f.Category, f.Value, f.Page, f.Quote, pages);
+                if (resolved.Fact is null) { rejections.Add(resolved.Rejection); continue; }
+                if (facts.Contains(resolved.Fact)) { duplicates++; continue; }
+                facts.Add(resolved.Fact); if (resolved.WhitespaceResolved) normalized++;
+            }
+            var warnings = rejections.Count == 0 ? wire.Warnings : wire.Warnings.Take(19)
+                .Append($"{rejections.Count} bulgu kaynakla doğrulanamadığı veya belirsiz olduğu için gösterilmedi. Yalnızca doğrulanan bulgular sunulur.").ToArray();
+            var result = new CvAnalysisResult(facts, warnings);
             EvidenceValidator.Validate(result, pages);
-            return new(result, $"ollama:{digest}", root.GetProperty("prompt_eval_count").GetInt32(), root.GetProperty("eval_count").GetInt32());
+            return new(result, $"ollama:{digest}", root.GetProperty("prompt_eval_count").GetInt32(), root.GetProperty("eval_count").GetInt32()) {
+                EvidenceDiagnostics = new(wire.Facts.Count, facts.Count, rejections.Count(x => x == EvidenceRejection.Shape),
+                    rejections.Count(x => x == EvidenceRejection.Page), rejections.Count(x => x == EvidenceRejection.QuoteMissing),
+                    rejections.Count(x => x == EvidenceRejection.QuoteAmbiguous), rejections.Count(x => x == EvidenceRejection.ValueMissing), normalized, duplicates) };
         }
         catch (OperationCanceledException) { throw new CvProviderException("AI.Timeout"); }
         catch (HttpRequestException) { throw new CvProviderException("AI.OllamaUnavailable", true); }
         catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException or FormatException or InvalidDataException or ArgumentException)
-        { throw new CvProviderException("AI.InvalidResponse"); }
+        { throw new CvProviderException("AI.InvalidResponse", stage: "JsonOrProviderEnvelope"); }
     }
     private static async Task<string> ReadBoundedAsync(HttpResponseMessage response, CancellationToken ct)
     {
@@ -120,5 +128,5 @@ internal sealed class OllamaCvAnalysisProvider(HttpClient http, CvAnalysisOption
     }
     private sealed record WireFact([property: JsonRequired] string Category, [property: JsonRequired] string Value,
         [property: JsonRequired] int Page, [property: JsonRequired] string Quote);
-    private sealed record WireResult([property: JsonRequired] IReadOnlyList<WireFact> Facts, [property: JsonRequired] IReadOnlyList<string> Warnings);
+    private sealed record WireResult([property: JsonRequired] IReadOnlyList<JsonElement> Facts, [property: JsonRequired] IReadOnlyList<string> Warnings);
 }

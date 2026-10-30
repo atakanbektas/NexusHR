@@ -33,14 +33,23 @@ public sealed class OllamaContractTests
     [Theory]
     [InlineData("not-json")]
     [InlineData("{\"facts\":[]}")]
-    [InlineData("{\"facts\":[{\"category\":\"skill\",\"value\":\"Java\",\"page\":1,\"quote\":\"Invented\"}],\"warnings\":[]}")]
-    [InlineData("{\"facts\":[{\"category\":\"skill\",\"value\":\"C#\",\"page\":2,\"quote\":\"C#\"}],\"warnings\":[]}")]
     [InlineData("{\"facts\":null,\"warnings\":[]}")]
     public async Task RejectsMalformedMissingAndUnsupportedEvidence(string content)
     {
         var handler = new Handler { Content = content }; var provider = new OllamaCvAnalysisProvider(new HttpClient(handler) { BaseAddress = new Uri("http://ollama:11434") }, Options);
         var error = await Assert.ThrowsAsync<CvProviderException>(() => provider.AnalyzeAsync([new(1, "C#")], "qwen3:4b", default));
         Assert.Equal("AI.InvalidResponse", error.Code);
+    }
+    [Theory]
+    [InlineData("{\"facts\":[{\"category\":\"skill\",\"value\":\"Java\",\"page\":1,\"quote\":\"Invented\"}],\"warnings\":[]}")]
+    [InlineData("{\"facts\":[{\"category\":\"skill\",\"value\":\"C#\",\"page\":2,\"quote\":\"C#\"}],\"warnings\":[]}")]
+    public async Task UnsupportedEvidenceIsDiscardedWithoutFabricatingFacts(string content)
+    {
+        var handler = new Handler { Content = content };
+        var provider = new OllamaCvAnalysisProvider(new HttpClient(handler) { BaseAddress = new Uri("http://ollama:11434") }, Options);
+        var response = await provider.AnalyzeAsync([new(1, "C#")], "qwen3:4b", default);
+        Assert.Empty(response.Result.Facts); Assert.Equal(0, response.EvidenceDiagnostics!.Accepted);
+        Assert.Single(response.Result.Warnings); // Worker records NoFindings, never useful success.
     }
     [Fact]
     public async Task MissingAndCloudModelsAreNotReady()

@@ -121,6 +121,9 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
             finally { await deadline.CancelAsync(); await monitor; }
             if (response.InputTokens < 0 || response.OutputTokens < 0) throw new InvalidDataException("Invalid usage.");
             EvidenceValidator.Validate(response.Result, pages);
+            if (response.EvidenceDiagnostics is { } d)
+                metricsLog.LogInformation("CV evidence: proposed={Proposed}, accepted={Accepted}, shapeRejected={ShapeRejected}, pageRejected={PageRejected}, quoteMissing={QuoteMissing}, quoteAmbiguous={QuoteAmbiguous}, valueMissing={ValueMissing}, whitespaceResolved={WhitespaceResolved}, duplicates={Duplicates}",
+                    d.Proposed, d.Accepted, d.ShapeRejected, d.PageRejected, d.QuoteMissing, d.QuoteAmbiguous, d.ValueMissing, d.WhitespaceResolved, d.Duplicates);
             metricsLog.LogInformation("CV output: facts={Facts}, warnings={Warnings}, inputTokens={InputTokens}, outputTokens={OutputTokens}",
                 response.Result.Facts.Count, response.Result.Warnings.Count, response.InputTokens, response.OutputTokens);
             if (response.Result.Facts.Count == 0)
@@ -147,6 +150,12 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
         }
         catch (CvProviderException ex)
         {
+            if (ex.Stage is not null)
+            {
+                await using var diagnosticsScope = scopes.CreateAsyncScope();
+                diagnosticsScope.ServiceProvider.GetRequiredService<ILogger<CvAnalysisWorker>>().LogWarning(
+                    "CV provider rejected response: code={Code}, stage={Stage}", ex.Code, ex.Stage);
+            }
             error = ex.Code;
             status = ex.Code == "AI.NoAnalyzableText" ? CvAnalysisStatus.NoFindings : ex.Code == "AI.Refused" ? CvAnalysisStatus.Refused :
                 ex.Code == "AI.OutcomeUnknown" ? CvAnalysisStatus.OutcomeUnknown : CvAnalysisStatus.Failed;

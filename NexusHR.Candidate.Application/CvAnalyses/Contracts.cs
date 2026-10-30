@@ -20,18 +20,25 @@ public interface ICvTextExtractor
 }
 public sealed record CvFact(string Category, string Value, int Page, int Start, string Quote);
 public sealed record CvAnalysisResult(IReadOnlyList<CvFact> Facts, IReadOnlyList<string> Warnings);
-public sealed record CvProviderResponse(CvAnalysisResult Result, string RequestId, int InputTokens, int OutputTokens);
+public sealed record CvProviderResponse(CvAnalysisResult Result, string RequestId, int InputTokens, int OutputTokens)
+{
+    public CvEvidenceDiagnostics? EvidenceDiagnostics { get; init; }
+}
+// Counts only. Never include model text, rejected quotes, prompts or identity in diagnostics.
+public sealed record CvEvidenceDiagnostics(int Proposed, int Accepted, int ShapeRejected, int PageRejected,
+    int QuoteMissing, int QuoteAmbiguous, int ValueMissing, int WhitespaceResolved, int Duplicates);
 public interface ICvAnalysisProvider
 {
     bool RequiresExternalProcessing => true;
     Task<string?> GetUnavailableCodeAsync(string model, CancellationToken ct) => Task.FromResult<string?>(null);
     Task<CvProviderResponse> AnalyzeAsync(IReadOnlyList<CvTextPage> pages, string model, CancellationToken ct);
 }
-public sealed class CvProviderException(string code, bool safeToRetry = false, TimeSpan? retryAfter = null) : Exception(code)
+public sealed class CvProviderException(string code, bool safeToRetry = false, TimeSpan? retryAfter = null, string? stage = null) : Exception(code)
 {
     public string Code { get; } = code;
     public bool SafeToRetry { get; } = safeToRetry;
     public TimeSpan? RetryAfter { get; } = retryAfter;
+    public string? Stage { get; } = stage;
 }
 public sealed class CvAnalysisException(int status, string code) : Exception(code)
 {
