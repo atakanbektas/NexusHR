@@ -1,3 +1,5 @@
+import { lazy, Suspense } from "react";
+import { Alert } from "@mui/material";
 import {
   BrowserRouter,
   Navigate,
@@ -14,17 +16,12 @@ import {
   hasAnyRole,
   NexusHrRoles,
 } from "./auth/roles";
-import CandidateDetailPage from
-  "./features/candidates/CandidateDetailPage";
-import CandidateListPage from
-  "./features/candidates/CandidateListPage";
-import OnboardingPage from "./features/onboarding/OnboardingPage";
-import CreateCandidateFromCvPage from
-  "./features/candidates/CreateCandidateFromCvPage";
-  import HiringProcessDetailPage from
-  "./features/hiring/HiringProcessDetailPage";
-  import PublicOfferResponsePage from
-  "./features/publicOffers/PublicOfferResponsePage";
+const CandidateDetailPage = lazy(() => import("./features/candidates/CandidateDetailPage"));
+const CandidateListPage = lazy(() => import("./features/candidates/CandidateListPage"));
+const OnboardingPage = lazy(() => import("./features/onboarding/OnboardingPage"));
+const CreateCandidateFromCvPage = lazy(() => import("./features/candidates/CreateCandidateFromCvPage"));
+const HiringProcessDetailPage = lazy(() => import("./features/hiring/HiringProcessDetailPage"));
+const PublicOfferResponsePage = lazy(() => import("./features/publicOffers/PublicOfferResponsePage"));
 
 function App() {
   const defaultPath =
@@ -36,6 +33,7 @@ function App() {
     <BrowserRouter>
       <AuthBar />
 
+      <Suspense fallback={<Alert severity="info">Sayfa yükleniyor…</Alert>}>
       <Routes>
         <Route path="/onboardings" element={<RoleGuard allowedRoles={OnboardingReaderRoles}><OnboardingPage key="list" /></RoleGuard>} />
         <Route path="/onboardings/:id" element={<RoleGuard allowedRoles={OnboardingReaderRoles}><OnboardingPage key="detail" /></RoleGuard>} />
@@ -122,6 +120,7 @@ function App() {
   element={<PublicOfferResponsePage />}
 />
       </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

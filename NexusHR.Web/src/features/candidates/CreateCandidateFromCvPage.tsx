@@ -40,12 +40,14 @@ const initialForm: CreateCandidateRequest = {
 function getErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
     const response = error.response?.data as
-      | { errors?: string[]; message?: string }
+      | { errors?: string[]; message?: string; code?: string }
       | undefined;
 
     if (response?.errors?.length) {
       return response.errors.join(" ");
     }
+    if (response?.code === "Candidate.UnsafeDocument") return "Belge güvenlik taramasını geçemedi. Güvenli bir CV dosyası seçin.";
+    if (response?.code === "Candidate.ScanUnavailable") return "Güvenlik taraması yapılamıyor. Dosya kabul edilmedi; daha sonra tekrar deneyin.";
 
     if (response?.message) {
       return response.message;
@@ -99,7 +101,7 @@ export default function CreateCandidateFromCvPage() {
 
   async function handleExtract() {
     if (!selectedFile) {
-      setErrorMessage("Önce bir PDF CV seçmelisiniz.");
+      setErrorMessage("Önce bir CV belgesi seçmelisiniz.");
       return;
     }
 
@@ -130,7 +132,7 @@ export default function CreateCandidateFromCvPage() {
 
 async function handleSave() {
   if (!selectedFile) {
-    setErrorMessage("Kaydetmeden önce bir PDF CV seçmelisiniz.");
+    setErrorMessage("Kaydetmeden önce bir CV belgesi seçmelisiniz.");
     return;
   }
 
@@ -258,7 +260,7 @@ async function handleSave() {
                   color="text.secondary"
                   sx={{ mb: 2 }}
                 >
-                  En fazla 5 MB boyutunda PDF dosyası
+                  En fazla 5 MB boyutunda PDF, JPG, PNG veya WEBP dosyası
                   yükleyebilirsiniz.
                 </Typography>
 
@@ -273,11 +275,11 @@ async function handleSave() {
                     startIcon={<CloudUpload />}
                     disabled={isExtracting}
                   >
-                    PDF seç
+                    CV belgesi seç
                     <input
                       hidden
                       type="file"
-                      accept="application/pdf,.pdf"
+                      accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp"
                       onChange={handleFileChange}
                     />
                   </Button>

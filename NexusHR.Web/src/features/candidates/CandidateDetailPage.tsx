@@ -320,7 +320,7 @@ export default function CandidateDetailPage() {
         )}
 
         {candidate && canDownloadCv && <Tabs value={detailTab} onChange={(_, value: number) => setDetailTab(value)} aria-label="Aday detay sekmeleri"><Tab label="Genel bilgiler" /><Tab label="CV Analizi" /></Tabs>}
-        {candidate && detailTab === 1 && canDownloadCv && <CvAnalysisPanel candidateId={candidate.id} />}
+        {candidate && detailTab === 1 && canDownloadCv && <CvAnalysisPanel candidateId={candidate.id} candidateStatus={candidate.status} />}
         {candidate && detailTab === 0 && hasAnyRole([NexusHrRoles.HrSpecialist]) &&
           (candidate.status === "Draft" || candidate.status === "DocumentsPending") &&
           <CandidateEditor key={`${candidate.id}-${candidate.updatedAtUtc}`} candidate={candidate} onSaved={setCandidate} />}
