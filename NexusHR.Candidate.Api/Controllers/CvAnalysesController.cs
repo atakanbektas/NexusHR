@@ -37,14 +37,15 @@ public sealed class CvAnalysesController(ISender sender) : ControllerBase
     [HttpPut("{id:guid}/review")]
     [Authorize(Roles = NexusHrRoles.CandidateEditors)]
     public async Task<IActionResult> Review(Guid candidateId, Guid id, ReviewAnalysisBody body, CancellationToken ct) =>
-        Ok(await sender.Send(new ChangeCvAnalysisCommand(candidateId, id, Subject(), Version(), "review", Decision: body.Decision, Notes: body.Notes), ct));
+        Ok(await sender.Send(new ChangeCvAnalysisCommand(candidateId, id, Subject(), Version(), "review", Decision: body.Decision, Notes: body.Notes,
+            FactIndex: body.FactIndex, CorrectedValue: body.CorrectedValue), ct));
     private string Subject() => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub") ?? "";
     private uint Version() => uint.TryParse(Request.Headers.IfMatch.ToString().Trim('"'), out var version) ? version :
         throw new CvAnalysisException(428, "AI.IfMatchRequired");
 }
 public sealed record RequestAnalysisBody(Guid DocumentId, bool AcknowledgeExternalProcessing = false);
 public sealed record RetryAnalysisBody(bool AcknowledgePossibleDuplicateCharge = false);
-public sealed record ReviewAnalysisBody(string Decision, string? Notes);
+public sealed record ReviewAnalysisBody(string Decision, string? Notes, int? FactIndex = null, string? CorrectedValue = null);
 public sealed class CvAnalysisExceptionFilter : IExceptionFilter, IResultFilter
 {
     public void OnResultExecuting(ResultExecutingContext context)

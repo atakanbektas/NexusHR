@@ -9,10 +9,17 @@ using CandidateEntity = NexusHR.Candidate.Domain.Candidates.Candidate;
 namespace NexusHR.Candidate.Infrastructure.Storage;
 
 internal sealed class CandidateCvUpload(CandidateDbContext db, ICandidateDocumentStorage storage,
-    IServiceScopeFactory scopes, ILogger<CandidateCvUpload> logger) : ICandidateCvUpload
+    IServiceScopeFactory scopes, ILogger<CandidateCvUpload> logger, Documents.LocalDocumentValidator validator) : ICandidateCvUpload
 {
     public async Task SaveAsync(CandidateEntity candidate, CandidateDocument document, byte[] content, CancellationToken cancellationToken)
+        => await SaveVersionAsync(candidate, document, null, content, cancellationToken);
+
+    public async Task ReplaceAsync(CandidateEntity candidate, CandidateDocument document, Guid previousDocumentId, byte[] content, CancellationToken cancellationToken)
+        => await SaveVersionAsync(candidate, document, previousDocumentId, content, cancellationToken);
+
+    private async Task SaveVersionAsync(CandidateEntity candidate, CandidateDocument document, Guid? previousDocumentId, byte[] content, CancellationToken cancellationToken)
     {
+        await validator.ValidateAsync(content, cancellationToken);
         document.RecordContentHash(Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(content)));
         var intent = new CvUploadIntent { Id = document.Id, ObjectName = document.ObjectName,
             ReconcileAfterUtc = DateTime.UtcNow.AddMinutes(15) };
@@ -23,7 +30,7 @@ internal sealed class CandidateCvUpload(CandidateDbContext db, ICandidateDocumen
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             deadline.CancelAfter(TimeSpan.FromMinutes(2));
             await storage.UploadAsync(document.ObjectName, content, document.ContentType, deadline.Token);
-            await CommitAsync(candidate, document, intent, deadline.Token);
+            await CommitAsync(candidate, document, intent, previousDocumentId, deadline.Token);
         }
         catch
         {
@@ -42,14 +49,24 @@ internal sealed class CandidateCvUpload(CandidateDbContext db, ICandidateDocumen
         }
     }
 
-    private async Task CommitAsync(CandidateEntity candidate, CandidateDocument document, CvUploadIntent intent, CancellationToken ct)
+    private async Task CommitAsync(CandidateEntity candidate, CandidateDocument document, CvUploadIntent intent, Guid? previousDocumentId, CancellationToken ct)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         // The reconciler takes the same lock. An expired upload cannot commit after cleanup.
         var reservation = await db.Set<CvUploadIntent>().FromSqlInterpolated(
             $"SELECT * FROM cv_upload_intents WHERE \"Id\" = {intent.Id} FOR UPDATE").SingleOrDefaultAsync(ct);
         if (reservation is null) throw new InvalidOperationException("The upload reservation expired. Retry the upload.");
-        candidate.MarkDocumentsPending();
+        if (previousDocumentId is { } previousId)
+        {
+            // Serialize against replacement/verification using the existing candidate xmin token.
+            var previous = await db.CandidateDocuments.SingleOrDefaultAsync(x => x.Id == previousId && x.CandidateId == candidate.Id && x.IsCurrent, ct)
+                ?? throw new NexusHR.Candidate.Application.CvAnalyses.CvAnalysisException(409, "Candidate.CvVersionConflict");
+            candidate.RecordCvReplacement();
+            document.Replace(previous);
+            // Free the partial unique key inside this transaction before inserting its successor.
+            await db.SaveChangesAsync(ct);
+        }
+        else candidate.MarkDocumentsPending();
         db.CandidateDocuments.Add(document);
         db.Set<CvUploadIntent>().Remove(reservation);
         await db.SaveChangesAsync(ct);

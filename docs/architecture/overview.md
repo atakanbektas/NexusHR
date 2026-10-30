@@ -16,7 +16,7 @@ Business services have independent databases. Scoped EF bus Outbox commits messa
 
 ## Persistence
 
-`xmin` optimistic concurrency protects Candidate, Hiring and Onboarding aggregates. Unique indexes protect normalized email, one CV per candidate, one active hiring process and one onboarding per hiring process. Conflicts map to ProblemDetails HTTP 409. Candidate contact updates stop after verification to preserve the Hiring snapshot.
+`xmin` optimistic concurrency protects Candidate, Hiring and Onboarding aggregates. Unique indexes protect normalized email, one **current** CV per candidate/type, unique document revisions, one active hiring process and one onboarding per hiring process. CV replacement uses the current document ID and retires/inserts metadata in the same transaction; old bytes and analyses remain. Contact/CV changes stop after verification to preserve the Hiring snapshot. See ADR 006.
 
 Candidate create/update repositories commit individual commands; verification publishes to scoped Outbox before its repository save. CV upload uses a dedicated coordinator: save durable intent, upload under a two-minute deadline, lock the intent, then commit document metadata/status/intent deletion together. Compensation checks the persistent outcome in a fresh context before deleting an object. A reconciler handles expired intents every minute, in batches of 100, after a 15-minute reservation window. It takes the same lock, checks document references and cannot delete a finalized object. PostgreSQL/MinIO atomicity is not claimed. See ADR 001.
 
@@ -26,7 +26,7 @@ Keycloak OIDC/PKCE authenticates the browser. Gateway and APIs independently enf
 
 Shared Hosting provides JSON logs, ProblemDetails with compatible code/errors fields, correlation IDs, health checks and optional OTLP export. Compose retains named volumes; migrations run automatically in Development only unless explicitly enabled. Production schema changes need a controlled rollout.
 
-Limits: SMTP may duplicate mail, PDF parsing is not antivirus/OCR, MinIO upstream is archived, and single-machine Compose is not an HA/production deployment. See README, deployment notes and current verification report.
+Optional private Tesseract OCR supplies source text/word boxes for scanned pages and images. A separate fail-closed ClamAV adapter scans uploads, extraction and stored downloads; Candidate Production startup requires it. Readiness covers document dependencies. These defenses do not guarantee arbitrary file safety or OCR accuracy. SMTP may duplicate mail; MinIO upstream is archived; single-machine Compose is not an HA/production deployment. See [operations](../operations.md).
 
 ## Optional CV analysis
 

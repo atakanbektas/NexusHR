@@ -83,6 +83,17 @@ public sealed class CandidateDocument
 
     public DateTime UploadedAtUtc { get; private set; }
     public string? ContentHash { get; private set; }
+    public bool IsCurrent { get; private set; } = true;
+    public int Revision { get; private set; } = 1;
+    public Guid? PreviousDocumentId { get; private set; }
+    public void Replace(CandidateDocument previous)
+    {
+        if (!previous.IsCurrent || previous.CandidateId != CandidateId || previous.Type != Type)
+            throw new InvalidOperationException("Invalid previous document.");
+        previous.IsCurrent = false;
+        PreviousDocumentId = previous.Id;
+        Revision = checked(previous.Revision + 1);
+    }
     public void RecordContentHash(string hash)
     {
         if (hash.Length != 64 || hash.Any(c => !Uri.IsHexDigit(c))) throw new ArgumentException("Invalid SHA-256.");

@@ -32,7 +32,7 @@ export default function CandidateEditor({ candidate, onSaved }: {
         <TextField key={key} label={label} value={form[key as keyof typeof form]} disabled={busy}
           onChange={event => setForm(previous => ({ ...previous, [key]: event.target.value }))} />)}
       {candidate.status === "Draft" && <Button component="label" disabled={busy}>Eksik CV dosyasını seç
-        <input hidden type="file" accept="application/pdf,.pdf" onChange={event => setFile(event.target.files?.[0] ?? null)} />
+        <input hidden type="file" accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp" onChange={event => setFile(event.target.files?.[0] ?? null)} />
       </Button>}
       {file && <Typography>{file.name}</Typography>}
       <Button disabled={busy} variant="outlined" onClick={() => void save()}>Değişiklikleri kaydet</Button>

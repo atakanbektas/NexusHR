@@ -62,5 +62,10 @@ internal sealed class ExtractCandidateFromCvCommandHandler(
         {
             return ExtractCandidateFromCvResponse.Failure("Candidate.InvalidCvFile", exception.Message);
         }
+        catch (CvProviderException exception)
+        {
+            return ExtractCandidateFromCvResponse.Failure(exception.Code,
+                "Yerel belge metni çıkarılamadı. OCR servisini, belge kalitesini ve sayfa/boyut sınırlarını kontrol edin.");
+        }
     }
 }

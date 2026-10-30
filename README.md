@@ -8,6 +8,12 @@ NexusHR connects candidate verification, hiring offers and employee onboarding. 
 
 **Verification:** see [integration results](docs/audits/integration-verification.md). Implementation, executed tests and production limitations are reported separately.
 
+**Document lifecycle and HR review:** immutable CV versions, authorized source preview, grounded employment/education/skill tables and separate human corrections. Optional private Tesseract OCR supports scanned PDFs and JPEG/PNG/WEBP; a fail-closed ClamAV scanner protects uploads and stored reads. See [local setup](docs/multimodal-cv.md), [operations and recovery](docs/operations.md), [ADR 006](docs/adr/006-versioned-cvs-and-local-extraction.md) and [current verification](docs/audits/portfolio-hardening.md).
+
+![Synthetic CV evidence and HR review](docs/screenshots/ai-review.png)
+
+[View the actual scanned PDF → Tesseract → qwen3:4b browser result](docs/screenshots/ocr-ollama.png) (synthetic input; zero external API cost).
+
 ## Business workflow
 
 Candidate registration → CV extraction/upload → document verification → hiring process → offer preparation/email → anonymous acceptance or rejection → onboarding tasks → HR completion → Hiring Completed.
@@ -67,7 +73,7 @@ The first build compiles pinned official MinIO source because upstream public im
 5. Open **Onboarding** as HR or IT; start and complete the equipment, account and access tasks.
 6. As HR, complete the ready onboarding. Hiring eventually becomes Completed with an employee reference.
 
-Candidate contacts are editable until verification; verified snapshots are locked for Hiring. Upload failures can be retried against the existing draft. The onboarding aggregate is the employee profile/reference in this scope; payroll and attendance are not implemented. [Screenshot placeholders](docs/screenshots/README.md) are explicitly marked.
+Candidate contacts/CVs are editable until verification; verified snapshots are locked for Hiring. CV replacement requires the current document ID and retains historical bytes/results. Upload failures can be retried against the existing draft. The onboarding aggregate is the employee profile/reference in this scope; payroll and attendance are not implemented. [Screenshot provenance](docs/screenshots/README.md).
 
 ## Verification
 
@@ -106,7 +112,7 @@ Development connection strings and fixtures are confined to Development settings
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Optional logs/traces/metrics collector |
 | `VITE_API_BASE_URL`, `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`, `VITE_KEYCLOAK_CLIENT_ID` | Public frontend build settings, never secrets |
 
-APIs expose `/health/live`, `/health/ready` and `X-Correlation-ID`. Readiness includes database and MassTransit checks; Gateway readiness is process-local. See [architecture](docs/architecture/overview.md), [deployment/recovery](docs/deployment.md) and ADRs below.
+APIs expose `/health/live`, `/health/ready` and `X-Correlation-ID`. Readiness includes database and MassTransit; Candidate additionally checks object storage, enabled scanner and OCR. Gateway readiness is process-local. See [architecture](docs/architecture/overview.md), [deployment/recovery](docs/deployment.md) and ADRs below.
 
 ## Decisions and limitations
 
@@ -115,5 +121,5 @@ APIs expose `/health/live`, `/health/ready` and `X-Correlation-ID`. Readiness in
 - [MinIO source build](docs/adr/003-local-minio-source-build.md): archived upstream is a production risk. Choose a maintained S3 service/distribution and validate compatibility before production data migration.
 - Backend roles are authoritative; Admin has no implicit override. Only HR completes onboarding. Production requires HTTPS identity metadata and a configured audience mapper. Local JWTs validate issuer/signature/lifetime and authorized party.
 - Offer tokens are random, hashed, expiring and consumed once; responses have rate/body limits and optimistic concurrency protection. Proxy topology must be configured before public exposure.
-- PDF extraction is heuristic and bounded, not OCR or malware scanning. No request body, CV content or bearer token is deliberately logged.
-- HA, backup/restore drills, tenant/department restrictions, production TLS/secrets and load testing require deployment-specific acceptance work. This repository is not a certified production deployment.
+- PdfPig-first extraction has optional local OCR and independent fail-closed malware scanning. Candidate Production startup requires scanning. No request body, CV content or bearer token is deliberately logged. OCR/AI can miss or misread information; human source review remains necessary.
+- A real Candidate DB/S3 restore rehearsal and bounded local read-load probe are implemented. Whole-platform recovery, HA, tenant/department restrictions, retention/erasure, production TLS/secrets and representative capacity testing still need deployment-specific acceptance. This repository is not a certified production deployment.

@@ -19,7 +19,9 @@ internal sealed class PdfCvTextExtractor : ICvTextExtractor
             ct.ThrowIfCancellationRequested();
             var text = ContentOrderTextExtractor.GetText(page); size += text.Length + Environment.NewLine.Length;
             if (size > 500_000) throw new InvalidDataException("CV text exceeds the extraction limit.");
-            pages.Add(new(page.Number, text) { ImageCount = page.NumberOfImages });
+            var scannedArea = page.NumberOfImages == 0 ? 0 : page.GetImages().Sum(image => Math.Abs(image.BoundingBox.Area));
+            pages.Add(new(page.Number, text) { ImageCount = page.NumberOfImages,
+                RequiresOcr = text.Count(char.IsLetterOrDigit) < 40 || scannedArea >= Math.Abs(page.Width * page.Height) * .5 });
         }
         if (pages.All(x => !x.Text.Any(char.IsLetterOrDigit)))
             throw new CvTextUnavailableException(pages.Count, pages.Count(x => x.ImageCount > 0), pages.Sum(x => x.Text.Length));

@@ -1,0 +1,39 @@
+# Optional local safety boundary. Definitions download has no access to documents.
+services:
+  cv-antivirus-update:
+    image: clamav/clamav:1.5.4@sha256:bda39705e291105049c3936e2803ac90b955172af8030f94f05dce1252df6c6d
+    profiles: [security]
+    entrypoint: [freshclam, --foreground=true]
+    volumes: [antivirus-definitions:/var/lib/clamav]
+    networks: [default]
+    mem_limit: 1g
+    cpus: 1
+    restart: "no"
+  cv-antivirus:
+    image: clamav/clamav:1.5.4@sha256:bda39705e291105049c3936e2803ac90b955172af8030f94f05dce1252df6c6d
+    profiles: [security]
+    environment:
+      CLAMAV_NO_FRESHCLAMD: "true"
+    volumes: [antivirus-definitions:/var/lib/clamav]
+    networks: [document-internal]
+    depends_on:
+      cv-antivirus-update:
+        condition: service_completed_successfully
+    mem_limit: 4g
+    cpus: 2
+    pids_limit: 128
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+  candidate-api:
+    environment:
+      DocumentSafety__Enabled: "true"
+      DocumentSafety__Host: cv-antivirus
+    networks: [default, document-internal]
+    depends_on:
+      cv-antivirus:
+        condition: service_healthy
+networks:
+  document-internal:
+    internal: true
+volumes:
+  antivirus-definitions:

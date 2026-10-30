@@ -6,5 +6,6 @@ public sealed record UploadCandidateCvCommand(
     Guid CandidateId,
     string FileName,
     string ContentType,
-    byte[] FileContent)
+    byte[] FileContent,
+    Guid? ReplacesDocumentId = null)
     : IRequest<UploadCandidateCvResponse>;
