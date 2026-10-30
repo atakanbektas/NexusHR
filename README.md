@@ -12,6 +12,8 @@ NexusHR connects candidate verification, hiring offers and employee onboarding. 
 
 ![Synthetic CV evidence and HR review](docs/screenshots/ai-review.png)
 
+[View the actual scanned PDF → Tesseract → qwen3:4b browser result](docs/screenshots/ocr-ollama.png) (synthetic input; zero external API cost).
+
 ## Business workflow
 
 Candidate registration → CV extraction/upload → document verification → hiring process → offer preparation/email → anonymous acceptance or rejection → onboarding tasks → HR completion → Hiring Completed.

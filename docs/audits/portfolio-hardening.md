@@ -20,6 +20,7 @@ Branch: `codex/portfolio-hardening`, based on `e0c0099` (PR #25). The PR stack i
 | Native OCR | 3 passed: five document formats with TR/EN, corrupt/blank/low-quality input, cancelled native-worker cleanup |
 | Real ClamAV | 1 passed: clean PDF accepted, harmless EICAR decoded only in memory rejected |
 | AI browser regression | 5 passed: analysis/review, contact-only and professional-empty results, disabled OCR explanation, structured tables/version replacement/human correction |
+| Actual OCR/Qwen browser | Passed with actual native provider and isolated real PostgreSQL/RabbitMQ/MinIO. Playwright displays persisted employment/education/skills, grounded employer and OCR provenance; no CV/result mocking. Combined native-to-browser rerun: 1m13s. [Capture](../screenshots/ocr-ollama.png) |
 | Candidate → Hiring → Onboarding browser | 2 passed, including real Keycloak, email acceptance, task completion and auditor upload denial |
 | npm ci / lint / build | Passed, npm audit at install reported zero vulnerabilities |
 | Scoped restore rehearsal | Passed: actual pg_dump/psql restore into new disposable PG, retained CV bytes copied to new isolated S3, versions/reviews/hashes checked |
@@ -28,8 +29,8 @@ Branch: `codex/portfolio-hardening`, based on `e0c0099` (PR #25). The PR stack i
 | Actual Qwen OCR workflow | Initial run failed its employment assertion: five grounded facts, job misclassified as duration, fields omitted. Required fields array and precise category prompt fixed this; real-model rerun passed (2m11s), including three professional categories, structured fields, OCR source regions, zero API cost and idempotent replay |
 | EF model drift | No pending model changes in Candidate, Hiring or Onboarding |
 | Dependency audits | npm: zero vulnerabilities; NuGet: no High/Critical findings |
-| Native Qwen regressions | Four passed before required-field prompt change; final TR/EN rerun in progress |
-| GitHub Actions | Pending push/PR |
+| Native Qwen regressions | Four passed before required-field prompt change; both TR/EN real-model regressions rerun after the final schema/prompt and passed (3m26s) |
+| GitHub Actions | [PR #26](https://github.com/atakanbektas/NexusHR/pull/26); remote verification in progress. Do not interpret a running check as a pass |
 
 ## Observed failures and corrections
 

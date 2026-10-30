@@ -33,4 +33,6 @@ Per-fact accept/reject/correct actions append separate HR records under optimist
 
 Normal CI uses a deterministic provider, real PostgreSQL/RabbitMQ/MinIO, browser review/version regressions, actual OCR and private ClamAV. No paid API calls or personal CV fixtures. Native Qwen tests require `RUN_OLLAMA_TESTS=1`; the full scan-to-OCR-to-messaging-to-Qwen-to-persistence test uses `RUN_OCR_OLLAMA_TESTS=1` and a loopback test endpoint. See [results](audits/portfolio-hardening.md).
 
+Set `RUN_OCR_BROWSER_TESTS=1` alongside `RUN_OCR_OLLAMA_TESTS=1` to verify the actual persisted native result in Playwright as well. This requires the local Web/Keycloak stack, installed browser and `nexushr-local-ocr:1` image. `CAPTURE_PORTFOLIO=1` deliberately refreshes the synthetic native screenshot. Ordinary CI never invokes a model or paid API.
+
 OCR can misread glyphs/layouts. Evidence validates extracted text alignment, not the truth of a CV claim. HR must compare the source preview. Complete extraction, automated hiring decisions, face analysis and vision inference are not claimed.

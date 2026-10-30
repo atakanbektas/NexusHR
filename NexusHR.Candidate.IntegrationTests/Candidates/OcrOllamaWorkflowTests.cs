@@ -53,11 +53,30 @@ public sealed class OcrOllamaWorkflowTests
             var replay = await client.PostAsJsonAsync(path, request); replay.EnsureSuccessStatusCode(); Assert.Equal(run.Id, (await replay.Content.ReadFromJsonAsync<AnalysisView>())!.Id);
             await using var scope = fixture.Scopes.CreateAsyncScope();
             Assert.Equal(1, await scope.ServiceProvider.GetRequiredService<Infrastructure.Persistence.CandidateDbContext>().Set<CvAnalysisAttempt>().CountAsync(x => x.AnalysisId == run.Id));
+            if (Environment.GetEnvironmentVariable("RUN_OCR_BROWSER_TESTS") == "1")
+                await VerifyBrowserAsync(fixture.App.Urls.Single(), candidate);
         }
         finally { await fixture.DisposeAsync(); }
     }
     private sealed record Created(Guid Id);
     private sealed record RequestAnalysisBodyForTest(Guid DocumentId);
+    private static async Task VerifyBrowserAsync(string backend, Guid candidate)
+    {
+        var root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (root is not null && !File.Exists(Path.Combine(root.FullName, "NexusHR.slnx"))) root = root.Parent;
+        Assert.NotNull(root);
+        var start = new System.Diagnostics.ProcessStartInfo("node") { WorkingDirectory = Path.Combine(root.FullName, "NexusHR.Web"),
+            RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true,
+            StandardOutputEncoding = System.Text.Encoding.UTF8, StandardErrorEncoding = System.Text.Encoding.UTF8 };
+        foreach (var arg in new[] { "node_modules/@playwright/test/cli.js", "test", "ocr-ollama.spec.ts", "--reporter=list", "--output", Path.Combine(root.FullName, ".tools", "ocr-browser", candidate.ToString()) }) start.ArgumentList.Add(arg);
+        start.Environment["E2E_AI_BACKEND_URL"] = backend; start.Environment["E2E_AI_CANDIDATE_ID"] = candidate.ToString();
+        using var process = System.Diagnostics.Process.Start(start)!;
+        var output = process.StandardOutput.ReadToEndAsync(); var error = process.StandardError.ReadToEndAsync();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+        try { await process.WaitForExitAsync(timeout.Token); }
+        catch { process.Kill(entireProcessTree: true); throw; }
+        Assert.True(process.ExitCode == 0, (await output) + (await error));
+    }
 }
 internal sealed class OcrOllamaFactAttribute : FactAttribute
 {
