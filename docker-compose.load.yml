@@ -1,0 +1,61 @@
+# Isolated synthetic load fixture; never shares business databases, objects or broker state.
+# Extends public Development fixtures only. Requires Compose >= 2.24.4 (!override).
+name: nexushr-load
+services:
+  candidate-db:
+    extends: { file: docker-compose.yml, service: candidate-db }
+    container_name: !reset null
+    ports: !override []
+    volumes: !override []
+  hiring-db:
+    extends: { file: docker-compose.yml, service: hiring-db }
+    container_name: !reset null
+    ports: !override []
+    volumes: !override []
+  rabbitmq:
+    extends: { file: docker-compose.yml, service: rabbitmq }
+    container_name: !reset null
+    hostname: nexushr-load-rabbitmq
+    ports: !override []
+    volumes: !override []
+  candidate-storage:
+    extends: { file: docker-compose.yml, service: candidate-storage }
+    container_name: !reset null
+    ports: !override []
+    volumes: !override []
+  candidate-api:
+    extends: { file: docker-compose.yml, service: candidate-api }
+    image: nexushr-load-candidate:hardening
+    container_name: !reset null
+    ports: !override []
+    extra_hosts: [host.docker.internal:host-gateway]
+    environment:
+      Keycloak__MetadataAddress: http://host.docker.internal:8080/realms/nexushr/.well-known/openid-configuration
+      CvAnalysis__Enabled: "false"
+      LocalDocuments__Enabled: "false"
+      DocumentSafety__Enabled: "false"
+    depends_on: !override
+      candidate-db: { condition: service_healthy }
+      candidate-storage: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+  hiring-api:
+    extends: { file: docker-compose.yml, service: hiring-api }
+    container_name: !reset null
+    ports: !override []
+    extra_hosts: [host.docker.internal:host-gateway]
+    environment:
+      Keycloak__MetadataAddress: http://host.docker.internal:8080/realms/nexushr/.well-known/openid-configuration
+    depends_on: !override
+      hiring-db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+  gateway:
+    extends: { file: docker-compose.yml, service: gateway }
+    image: ${LOAD_GATEWAY_IMAGE:-nexushr-load-gateway:hardening}
+    container_name: !reset null
+    ports: !override [127.0.0.1:5400:8080]
+    extra_hosts: [host.docker.internal:host-gateway]
+    environment:
+      Keycloak__MetadataAddress: http://host.docker.internal:8080/realms/nexushr/.well-known/openid-configuration
+    depends_on: !override
+      candidate-api: { condition: service_healthy }
+      hiring-api: { condition: service_healthy }

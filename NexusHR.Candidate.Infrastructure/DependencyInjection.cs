@@ -62,6 +62,7 @@ public static class DependencyInjection
         var rabbitMqSection =
             configuration.GetSection("RabbitMq");
 
+        var rabbitMqUseSsl = bool.Parse(rabbitMqSection["UseSsl"] ?? "false");
         var rabbitMqHost = rabbitMqSection["Host"]
             ?? throw new InvalidOperationException(
                 "RabbitMq:Host ayarı bulunamadı.");
@@ -128,7 +129,7 @@ public static class DependencyInjection
                 (context, rabbitMq) =>
                 {
                     rabbitMq.Host(
-                        rabbitMqHost, ushort.Parse(rabbitMqSection["Port"] ?? "5672"),
+                        rabbitMqHost, ushort.Parse(rabbitMqSection["Port"] ?? (rabbitMqUseSsl ? "5671" : "5672")),
                         rabbitMqVirtualHost,
                         host =>
                         {
@@ -137,6 +138,10 @@ public static class DependencyInjection
 
                             host.Password(
                                 rabbitMqPassword);
+                            if (rabbitMqUseSsl) host.UseSsl(ssl => {
+                                ssl.Protocol = System.Security.Authentication.SslProtocols.Tls12 | System.Security.Authentication.SslProtocols.Tls13;
+                                ssl.ServerName = rabbitMqHost;
+                            });
                         });
 
                     rabbitMq.ReceiveEndpoint("candidate-cv-analysis", endpoint =>

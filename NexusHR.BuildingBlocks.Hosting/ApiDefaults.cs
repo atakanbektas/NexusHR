@@ -25,11 +25,14 @@ public static class ApiDefaults
 {
     public static WebApplicationBuilder AddApiDefaults(this WebApplicationBuilder builder)
     {
-        if (builder.Environment.IsProduction() && builder.Configuration["Keycloak:Authority"] is { } authority &&
-            (!authority.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+        if ((builder.Environment.IsProduction() || builder.Environment.IsStaging()) && builder.Configuration["Keycloak:Authority"] is { } authority &&
+            (!IsHttps(authority) || !IsHttps(builder.Configuration["Keycloak:MetadataAddress"]) ||
              !builder.Configuration.GetValue<bool>("Keycloak:RequireHttpsMetadata") ||
              string.IsNullOrWhiteSpace(builder.Configuration["Keycloak:Audience"])))
             throw new InvalidOperationException("Production requires HTTPS identity metadata and an explicit API audience.");
+        if ((builder.Environment.IsProduction() || builder.Environment.IsStaging()) &&
+            builder.Configuration["RabbitMq:Host"] is not null && !builder.Configuration.GetValue<bool>("RabbitMq:UseSsl"))
+            throw new InvalidOperationException("Staging/production requires RabbitMq:UseSsl with a trusted broker certificate.");
 
         builder.Services.AddRateLimiter(options =>
         {
@@ -63,6 +66,20 @@ public static class ApiDefaults
         return builder;
     }
 
+    public static string[] GetFrontendOrigins(this WebApplicationBuilder builder)
+    {
+        var origins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ??
+            (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing") ? ["http://localhost:5173"] : []);
+        if (origins.Length == 0 || origins.Any(origin => !Uri.TryCreate(origin, UriKind.Absolute, out var uri) ||
+                uri.UserInfo.Length != 0 || uri.AbsolutePath != "/" || uri.Query.Length != 0 || uri.Fragment.Length != 0 ||
+                uri.Scheme is not ("http" or "https") ||
+                ((builder.Environment.IsProduction() || builder.Environment.IsStaging()) && uri.Scheme != "https")))
+            throw new InvalidOperationException("Configure explicit HTTPS Cors:AllowedOrigins for staging/production.");
+        return origins.Select(origin => new Uri(origin).GetLeftPart(UriPartial.Authority)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+    private static bool IsHttps(string? value) => Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
+        uri.Scheme == "https" && uri.UserInfo.Length == 0 && uri.Query.Length == 0 && uri.Fragment.Length == 0;
+
     public static void UseApiDefaults(this WebApplication app)
     {
         app.UseExceptionHandler();
@@ -95,8 +112,14 @@ internal sealed class DatabaseReadiness<TContext>(IServiceScopeFactory scopes) :
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<TContext>();
-        return await db.Database.CanConnectAsync(cancellationToken)
-            ? HealthCheckResult.Healthy() : HealthCheckResult.Unhealthy("Database unavailable.");
+        try
+        {
+            if (!await db.Database.CanConnectAsync(cancellationToken)) return HealthCheckResult.Unhealthy("Database unavailable.");
+            return (await db.Database.GetPendingMigrationsAsync(cancellationToken)).Any()
+                ? HealthCheckResult.Unhealthy("Database schema migrations pending.") : HealthCheckResult.Healthy();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch { return HealthCheckResult.Unhealthy("Database readiness could not be verified."); }
     }
 }
 

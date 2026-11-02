@@ -2,9 +2,21 @@
 
 The repository's local verification is not production certification. Keep reviewed release commits, dependency/image inventories, operator access and deployment-specific acceptance evidence together. No script should purge queues, reset databases/volumes, or overwrite a live environment to repair failures.
 
+Current executable follow-up: [staging/release procedure](staging.md), [k6 read/write fixture](load-testing.md), [component recovery and verification results](audits/recovery-performance-readiness.md), [ADR 008](adr/008-staging-release-and-recovery-evidence.md).
+
+## Proposed recovery objectives and cutover acceptance
+
+Proposed starting objectives for a small single-employer installation: at most 24 hours of acknowledged data loss (RPO) and restoration of the complete service within four hours (RTO). These require owner approval, encrypted daily backups, monitored failures, tested key custody and a measured staging cutover. They are **objectives, not verified guarantees**; a one-minute synthetic fixture test is not the platform's RTO.
+
+Quiesce all application writers, consumers/outbox dispatchers and email delivery before taking the coordinated snapshot. Preserve all three business DBs, Keycloak DB/signing material, CV versions, matching RabbitMQ node data/definitions/cookie, application revision and configuration references. Database/object dumps are not a distributed atomic transaction. Hold restored outbound email and external AI off until checking references, hashes, Inbox/Outbox state, error queues and capability expiry; do not purge/replay everything blindly. SMTP duplicates remain possible.
+
+The automated drills now restore three business DBs into a different PostgreSQL target and copy the referenced CV to a different bucket, restore actual broker topology/persistent messages onto a new same-named node, and restore a synthetic Keycloak database onto a new server without realm reimport (user login, role, audience and signing key checked). Existing separate CV rehearsal restores retained versions, reviews and byte hashes. New fixture credentials are generated at runtime; plaintext fixture archives are never production backup artifacts.
+
+Before real cutover, preserve the Keycloak public hostname/issuer and validate old/new session/token expiry behavior; verify every release digest/configuration/secret version. Native broker restoration requires the original node name; a new node name is not a supported substitute for copied queue data. Test the complete synthetic workflow after reconstruction before enabling real traffic. Cluster recovery, encrypted offsite restoration, certificate rotation and timed whole-system cutover still require the deployment environment. See [RabbitMQ backup/restore constraints](https://www.rabbitmq.com/docs/backup).
+
 ## Release and security boundary
 
-The current stack builds on PR #23 → #24 → #25. Review each layer, validate the combined release candidate, and tag only the reviewed integration. Main is never pushed directly or automatically merged by this work. Container publishing remains an explicit protected-environment action; it does not deploy infrastructure.
+The AI foundation/local-provider/evidence/portfolio layers were integrated through PRs #23–#26. Current application/operations hardening is reviewed separately starting with PR #36. Review each layer, validate the combined release candidate, and tag only the reviewed integration. Main is never pushed directly or automatically merged by this hardening work. Container publishing remains an explicit protected-environment action; it does not deploy infrastructure.
 
 Development defaults contain public fixtures. Production requires external secrets, HTTPS identity/audience configuration, TLS ingress, restricted management/database ports and a maintained S3-compatible service. Archived local MinIO is retained for reproducible testing, not recommended as a new production storage deployment. Test S3 compatibility and object hashes before migrating existing data; never delete the source until recovery acceptance and the organization's retention policy allow it.
 

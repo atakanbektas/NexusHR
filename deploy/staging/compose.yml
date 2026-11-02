@@ -1,0 +1,79 @@
+# Application-only staging. External TLS identity/DB/S3/broker/SMTP are operator-provisioned.
+# Each service gets its own secret environment file; never commit those files.
+name: nexushr-staging
+x-runtime: &runtime
+  restart: unless-stopped
+  security_opt: [no-new-privileges:true]
+  cap_drop: [ALL]
+  environment: &environment
+    ASPNETCORE_ENVIRONMENT: Staging
+    ASPNETCORE_URLS: http://+:8080
+    Database__ApplyMigrations: "false"
+services:
+  candidate-api:
+    <<: *runtime
+    image: ${CANDIDATE_IMAGE:?Use a reviewed image digest}
+    env_file: ${CANDIDATE_ENV_FILE:?Supply a private per-service environment file}
+    environment:
+      <<: *environment
+      DocumentSafety__Enabled: "true"
+      DocumentSafety__Host: cv-antivirus
+      CvAnalysis__Enabled: "false"
+      CvAnalysis__AllowExternalProcessing: "false"
+    networks: [default, document-internal]
+    depends_on:
+      cv-antivirus: { condition: service_healthy }
+    mem_limit: 1g
+  hiring-api:
+    <<: *runtime
+    image: ${HIRING_IMAGE:?Use a reviewed image digest}
+    env_file: ${HIRING_ENV_FILE:?Supply a private per-service environment file}
+    mem_limit: 768m
+  onboarding-api:
+    <<: *runtime
+    image: ${ONBOARDING_IMAGE:?Use a reviewed image digest}
+    env_file: ${ONBOARDING_ENV_FILE:?Supply a private per-service environment file}
+    mem_limit: 768m
+  notification-api:
+    <<: *runtime
+    image: ${NOTIFICATION_IMAGE:?Use a reviewed image digest}
+    env_file: ${NOTIFICATION_ENV_FILE:?Supply a private per-service environment file}
+    mem_limit: 384m
+  gateway:
+    <<: *runtime
+    image: ${GATEWAY_IMAGE:?Use a reviewed image digest}
+    env_file: ${GATEWAY_ENV_FILE:?Supply a private per-service environment file}
+    ports: [127.0.0.1:5500:8080]
+    environment:
+      <<: *environment
+      ReverseProxy__Clusters__candidate-cluster__Destinations__candidate-api__Address: http://candidate-api:8080/
+      ReverseProxy__Clusters__hiring-cluster__Destinations__hiring-api__Address: http://hiring-api:8080/
+      ReverseProxy__Clusters__onboarding-cluster__Destinations__onboarding-api__Address: http://onboarding-api:8080/
+    mem_limit: 384m
+  web:
+    <<: *runtime
+    image: ${WEB_IMAGE:?Use a reviewed image digest with staging public URLs}
+    environment: {}
+    # Existing nginx master changes worker identity; retain only its required capabilities.
+    cap_add: [CHOWN, SETUID, SETGID, NET_BIND_SERVICE]
+    ports: [127.0.0.1:5501:80]
+    mem_limit: 128m
+  cv-antivirus-update:
+    image: clamav/clamav:1.5.4@sha256:bda39705e291105049c3936e2803ac90b955172af8030f94f05dce1252df6c6d
+    entrypoint: [freshclam, --foreground=true]
+    volumes: [antivirus-definitions:/var/lib/clamav]
+    mem_limit: 1g
+    restart: "no"
+  cv-antivirus:
+    image: clamav/clamav:1.5.4@sha256:bda39705e291105049c3936e2803ac90b955172af8030f94f05dce1252df6c6d
+    environment: { CLAMAV_NO_FRESHCLAMD: "true" }
+    volumes: [antivirus-definitions:/var/lib/clamav]
+    networks: [document-internal]
+    depends_on:
+      cv-antivirus-update: { condition: service_completed_successfully }
+    mem_limit: 4g
+    restart: unless-stopped
+networks:
+  document-internal: { internal: true }
+volumes:
+  antivirus-definitions:

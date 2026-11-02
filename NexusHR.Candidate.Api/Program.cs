@@ -33,7 +33,7 @@ builder.Services.AddCors(options =>
         {
             policy
                 .WithOrigins(
-                    "http://localhost:5173")
+                    builder.GetFrontendOrigins())
                 .AllowAnyHeader()
                 .AllowAnyMethod();
         });
@@ -43,7 +43,7 @@ builder.Services.AddDatabaseReadiness<CandidateDbContext>();
 builder.AddApiDefaults();
 builder.Services.AddHealthChecks().AddCheck<NexusHR.Candidate.Api.DocumentReadiness>("documents", tags: ["ready"]);
 var app = builder.Build();
-if (app.Environment.IsProduction() && !builder.Configuration.GetValue<bool>("DocumentSafety:Enabled"))
+if ((app.Environment.IsProduction() || app.Environment.IsStaging()) && !builder.Configuration.GetValue<bool>("DocumentSafety:Enabled"))
     throw new InvalidOperationException("Production requires enabled local document malware scanning.");
 app.UseApiDefaults();
 
