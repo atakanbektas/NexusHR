@@ -93,7 +93,9 @@ npm run test:e2e
 
 Backend infrastructure tests use isolated disposable containers, never business volumes. Browser E2E requires the complete stack and verifies real Keycloak login, CV extraction/storage, offer email/acceptance, task completion, final Hiring state and forbidden auditor upload. E2E supports `E2E_WEB_URL`, `E2E_API_URL`, `E2E_MAIL_URL`, `E2E_PASSWORD` for alternate demo environments.
 
-CI builds/tests backend/frontend, checks migration drift, audits dependencies, starts Compose and runs browser E2E. A separate manual workflow publishes reviewed containers from main to GHCR under the `production` environment; it neither deploys nor merges PRs. Configure environment protection before releases.
+CI builds/tests backend/frontend, checks migration drift, audits dependencies, validates staging/load configuration, starts Compose and runs browser E2E. A separate manual workflow publishes reviewed containers from main to GHCR using the selected protected staging/production environment (default staging), requires successful CI for the exact main revision and records OCI revision/source labels plus digest manifests. It neither deploys nor merges PRs. Configure environment protection before releases.
+
+Engineering follow-up: [bounded overview/access review](docs/audits/engineering-hardening.md), [measured k6/recovery verification and weighted score](docs/audits/recovery-performance-readiness.md), [load fixture](docs/load-testing.md) and [staging guide](docs/staging.md). Recovery fixtures cover business databases/CV hashes, cold broker messages and Keycloak identity state; external TLS/CA and complete timed cutover remain deployment acceptance work.
 
 ## Configuration
 

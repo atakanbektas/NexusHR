@@ -23,6 +23,24 @@ jobs:
           cache: npm
           cache-dependency-path: NexusHR.Web/package-lock.json
       - run: docker compose config --quiet
+      - name: Validate load and staging configuration without deploying
+        shell: bash
+        run: |
+          docker compose -f docker-compose.load.yml config --quiet
+          node --check scripts/load/scenarios.js
+          node --check scripts/load/run.mjs
+          node --check scripts/validate-staging.mjs
+          umask 077
+          fixture_dir="$(mktemp -d)"
+          digest="$(printf '0%.0s' {1..64})"
+          for service in CANDIDATE HIRING ONBOARDING NOTIFICATION GATEWAY WEB; do
+            export "${service}_IMAGE=ghcr.io/example/fixture@sha256:$digest"
+            if [ "$service" != WEB ]; then
+              touch "$fixture_dir/$service.env"
+              export "${service}_ENV_FILE=$fixture_dir/$service.env"
+            fi
+          done
+          node scripts/validate-staging.mjs
       - name: Validate optional OCR and private scanner topology
         run: docker compose -f docker-compose.yml -f docker-compose.ai.yml -f docker-compose.multimodal.yml -f docker-compose.security.yml --profile ai --profile security config --quiet
       - name: Build MinIO from pinned upstream source

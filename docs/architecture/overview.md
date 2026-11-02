@@ -26,6 +26,8 @@ Keycloak OIDC/PKCE authenticates the browser. Gateway and APIs independently enf
 
 Shared Hosting provides JSON logs, ProblemDetails with compatible code/errors fields, correlation IDs, health checks and optional OTLP export. Compose retains named volumes; migrations run automatically in Development only unless explicitly enabled. Production schema changes need a controlled rollout.
 
+Readiness now rejects reachable relational databases with pending migrations. Staging/Production require HTTPS identity metadata/audience and explicit HTTPS browser origins; every bus adapter supports certificate-validating TLS with configurable port. Normal overview pagination reads/enriches only one page; display-status filtering has explicit work/time budgets (ADR 007). See ADR 008 for immutable release identity and the distinction between isolated recovery evidence and a complete deployment cutover.
+
 Optional private Tesseract OCR supplies source text/word boxes for scanned pages and images. A separate fail-closed ClamAV adapter scans uploads, extraction and stored downloads; Candidate Production startup requires it. Readiness covers document dependencies. These defenses do not guarantee arbitrary file safety or OCR accuracy. SMTP may duplicate mail; MinIO upstream is archived; single-machine Compose is not an HA/production deployment. See [operations](../operations.md).
 
 ## Optional CV analysis
