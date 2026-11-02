@@ -49,5 +49,8 @@
   <Folder Name="/tests/Hiring/">
     <Project Path="NexusHR.Hiring.UnitTests/NexusHR.Hiring.UnitTests.csproj" Id="00baef14-d4db-4965-8225-97208e9613f3" />
   </Folder>
+  <Folder Name="/tests/Platform/">
+    <Project Path="NexusHR.Platform.Tests/NexusHR.Platform.Tests.csproj" />
+  </Folder>
 </Solution>
 

@@ -27,6 +27,8 @@ internal static class CandidateOverviewEndpoints
     {
         try
         {
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            deadline.CancelAfter(TimeSpan.FromSeconds(20));
             var response = await service.GetAsync(
                 page,
                 pageSize,
@@ -34,20 +36,13 @@ internal static class CandidateOverviewEndpoints
                 status,
                 httpContext.Request.Headers.Authorization
                     .FirstOrDefault(),
-                cancellationToken);
+                deadline.Token);
 
             return Results.Ok(response);
         }
         catch (CandidateOverviewValidationException exception)
         {
-            return Results.BadRequest(new
-            {
-                code = "CandidateOverview.ValidationFailed",
-                errors = new[]
-                {
-                    exception.Message
-                }
-            });
+            return Problem(httpContext, 400, "CandidateOverview.ValidationFailed", exception.Message);
         }
         catch (CandidateOverviewDownstreamException exception)
         {
@@ -57,16 +52,15 @@ internal static class CandidateOverviewEndpoints
                     ? (int)exception.StatusCode
                     : StatusCodes.Status502BadGateway;
 
-            return Results.Json(
-                new
-                {
-                    code = "CandidateOverview.DownstreamFailure",
-                    errors = new[]
-                    {
-                        "Aday ve işe alım bilgileri birleştirilemedi."
-                    }
-                },
-                statusCode: statusCode);
+            return Problem(httpContext, statusCode, "CandidateOverview.DownstreamFailure", "Aday ve işe alım bilgileri birleştirilemedi.");
         }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        { return Problem(httpContext, 504, "CandidateOverview.Timeout", "Bilgiler zamanında alınamadı. Yeniden deneyin."); }
+        catch (HttpRequestException)
+        { return Problem(httpContext, 502, "CandidateOverview.DownstreamFailure", "Aday ve işe alım bilgileri birleştirilemedi."); }
     }
+
+    private static IResult Problem(HttpContext context, int status, string code, string message) => Results.Problem(
+        statusCode: status, title: code, extensions: new Dictionary<string, object?> {
+            ["code"] = code, ["errors"] = new[] { message }, ["traceId"] = context.TraceIdentifier });
 }

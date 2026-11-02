@@ -40,6 +40,7 @@ internal sealed class CandidateRepository(
     {
         return await ApplyFilters(search, status)
             .OrderByDescending(candidate => candidate.CreatedAtUtc)
+            .ThenByDescending(candidate => candidate.Id)
             .Skip(skip)
             .Take(take)
             .ToListAsync(cancellationToken);

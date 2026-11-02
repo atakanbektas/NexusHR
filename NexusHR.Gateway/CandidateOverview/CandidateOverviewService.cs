@@ -8,6 +8,8 @@ internal sealed class CandidateOverviewService(
     IHttpClientFactory httpClientFactory)
 {
     private const int DownstreamPageSize = 100;
+    // Cross-service display-status filters require a join. Fail explicitly beyond this budget.
+    internal const int MaxFilteredCandidates = 5000;
 
     private static readonly HashSet<string> CandidateStatuses =
         new(StringComparer.OrdinalIgnoreCase)
@@ -50,6 +52,15 @@ internal sealed class CandidateOverviewService(
         };
 
         var filter = ParseStatusFilter(statusFilter);
+
+        if (filter is null)
+        {
+            var candidatePage = await GetCandidatePageAsync(normalizedPage, normalizedPageSize, search, null,
+                authorizationHeader, cancellationToken);
+            var statuses = await GetHiringStatusesAsync(candidatePage.Items.Select(x => x.Id).ToArray(),
+                authorizationHeader, cancellationToken);
+            return new(Map(candidatePage.Items, statuses), normalizedPage, normalizedPageSize, candidatePage.TotalCount);
+        }
 
         var candidates = await GetAllCandidatesAsync(
             search,
@@ -101,8 +112,9 @@ internal sealed class CandidateOverviewService(
 
         var totalCount = overviewItems.Length;
 
+        var offset = ((long)normalizedPage - 1) * normalizedPageSize;
         var items = overviewItems
-            .Skip((normalizedPage - 1) * normalizedPageSize)
+            .Skip((int)Math.Min(offset, overviewItems.Length))
             .Take(normalizedPageSize)
             .ToArray();
 
@@ -111,6 +123,31 @@ internal sealed class CandidateOverviewService(
             normalizedPage,
             normalizedPageSize,
             totalCount);
+    }
+
+    private static CandidateOverviewItemResponse[] Map(IEnumerable<CandidateItemResponse> candidates,
+        IEnumerable<CandidateHiringProcessStatusResponse> statuses)
+    {
+        var lookup = statuses.ToDictionary(x => x.CandidateId);
+        return candidates.Select(c => {
+            lookup.TryGetValue(c.Id, out var hiring);
+            return new CandidateOverviewItemResponse(c.Id, c.FirstName, c.LastName, c.Email, c.PhoneNumber, c.Status,
+                hiring?.HiringProcessId, hiring?.Status, hiring is null ? "Candidate" : "Hiring", hiring?.Status ?? c.Status, c.CreatedAtUtc);
+        }).ToArray();
+    }
+
+    private async Task<CandidatePageResponse> GetCandidatePageAsync(int page, int pageSize, string? search, string? status,
+        string? authorization, CancellationToken ct)
+    {
+        var query = $"page={page}&pageSize={pageSize}";
+        if (!string.IsNullOrWhiteSpace(search)) query += $"&search={Uri.EscapeDataString(search.Trim())}";
+        if (status is not null) query += $"&status={Uri.EscapeDataString(status)}";
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"api/candidates?{query}");
+        AddAuthorizationHeader(request, authorization);
+        using var response = await httpClientFactory.CreateClient(CandidateOverviewHttpClients.CandidateApi).SendAsync(request, ct);
+        await EnsureSuccessAsync(response, "Candidate API", ct);
+        return await response.Content.ReadFromJsonAsync<CandidatePageResponse>(JsonOptions, ct)
+            ?? throw new CandidateOverviewDownstreamException(HttpStatusCode.BadGateway, "Invalid candidate page.");
     }
 
     private async Task<IReadOnlyCollection<CandidateItemResponse>>
@@ -173,6 +210,8 @@ internal sealed class CandidateOverviewService(
                     "Candidate API geçersiz bir yanıt döndürdü.");
 
             totalCount = pageResponse.TotalCount;
+            if (totalCount > MaxFilteredCandidates || candidates.Count + pageResponse.Items.Count > MaxFilteredCandidates)
+                throw new CandidateOverviewValidationException("Durum filtresi en fazla 5000 aday üzerinde çalışır. Arama ile kapsamı daraltın.");
             candidates.AddRange(pageResponse.Items);
 
             if (pageResponse.Items.Count == 0)
@@ -334,22 +373,19 @@ internal sealed class CandidateOverviewService(
         }
     }
 
-    private static async Task EnsureSuccessAsync(
+    private static Task EnsureSuccessAsync(
         HttpResponseMessage response,
         string serviceName,
         CancellationToken cancellationToken)
     {
         if (response.IsSuccessStatusCode)
         {
-            return;
+            return Task.CompletedTask;
         }
-
-        var responseBody = await response.Content
-            .ReadAsStringAsync(cancellationToken);
 
         throw new CandidateOverviewDownstreamException(
             response.StatusCode,
-            $"{serviceName} isteği başarısız oldu: {responseBody}");
+            $"{serviceName} request failed ({(int)response.StatusCode}).");
     }
 }
 

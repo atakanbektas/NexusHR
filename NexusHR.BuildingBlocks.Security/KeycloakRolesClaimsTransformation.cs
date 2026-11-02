@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication;
 
@@ -23,10 +23,13 @@ internal sealed class KeycloakRolesClaimsTransformation
             return Task.FromResult(principal);
         }
 
-        using var realmAccess =
-            JsonDocument.Parse(realmAccessClaim.Value);
+        if (realmAccessClaim.Value.Length > 16384) return Task.FromResult(principal);
+        JsonDocument realmAccess;
+        try { realmAccess = JsonDocument.Parse(realmAccessClaim.Value, new() { MaxDepth = 8 }); }
+        catch (JsonException) { return Task.FromResult(principal); }
+        using var document = realmAccess;
 
-        if (!realmAccess.RootElement.TryGetProperty(
+        if (realmAccess.RootElement.ValueKind != JsonValueKind.Object || !realmAccess.RootElement.TryGetProperty(
                 "roles",
                 out var rolesElement))
         {
@@ -34,7 +37,8 @@ internal sealed class KeycloakRolesClaimsTransformation
         }
 
         if (rolesElement.ValueKind !=
-            JsonValueKind.Array)
+            JsonValueKind.Array || rolesElement.GetArrayLength() > 100 ||
+            rolesElement.EnumerateArray().Any(role => role.ValueKind != JsonValueKind.String || role.GetString()!.Length > 128))
         {
             return Task.FromResult(principal);
         }

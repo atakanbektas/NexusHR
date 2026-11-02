@@ -84,6 +84,25 @@ public sealed class MessagingReliabilityTests
             }
             Assert.Equal(0, (await broker.ExecAsync(["rabbitmqctl", "start_app"])).ExitCode);
             await Eventually(async db => !await db.Set<OutboxMessage>().AnyAsync());
+
+            // Unsupported messages must exhaust bounded retries into _error, not commit partial state.
+            var poison = message with { EventId = Guid.NewGuid(), HiringProcessId = Guid.NewGuid(), SchemaVersion = 999 };
+            await bus.Publish(poison, context => context.MessageId = poison.EventId);
+            var errorDeadline = DateTime.UtcNow.AddSeconds(50);
+            while (true)
+            {
+                var queues = await broker.ExecAsync(["rabbitmqctl", "list_queues", "--formatter=json", "name", "messages_ready"]);
+                Assert.Equal(0, queues.ExitCode);
+                using var parsed = System.Text.Json.JsonDocument.Parse(queues.Stdout);
+                if (parsed.RootElement.EnumerateArray().Any(q => q.GetProperty("name").GetString()!.EndsWith("_error", StringComparison.Ordinal) && q.GetProperty("messages_ready").GetInt32() == 1)) break;
+                Assert.True(DateTime.UtcNow < errorDeadline, "Poison message never reached its durable error queue.");
+                await Task.Delay(500);
+            }
+            await using (var scope = host.Services.CreateAsyncScope())
+                Assert.False(await scope.ServiceProvider.GetRequiredService<OnboardingDbContext>().EmployeeOnboardings.AnyAsync(x => x.HiringProcessId == poison.HiringProcessId));
+            var afterPoison = message with { EventId = Guid.NewGuid(), HiringProcessId = Guid.NewGuid(), CandidateId = Guid.NewGuid() };
+            await bus.Publish(afterPoison, context => context.MessageId = afterPoison.EventId);
+            await Eventually(db => db.EmployeeOnboardings.AnyAsync(x => x.HiringProcessId == afterPoison.HiringProcessId));
         }
         finally { await host.StopAsync(); }
 
