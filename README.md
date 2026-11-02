@@ -1,6 +1,21 @@
 # NexusHR
 
+[![Build, test and integration](https://github.com/atakanbektas/NexusHR/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/atakanbektas/NexusHR/actions/workflows/ci.yml?query=branch%3Amain)
+
 NexusHR connects candidate verification, hiring offers and employee onboarding. A .NET 10 / React portfolio application with explicit business boundaries, durable messaging and tested failure handling.
+
+Built to demonstrate senior backend engineering: resource authorization, optimistic concurrency, PostgreSQL/S3 compensation, asynchronous workflows, evidence-grounded AI and recovery testing. This is a single-employer application; it does not implement tenant or department ownership isolation.
+
+## Implemented features
+
+| Area | Available behavior |
+| --- | --- |
+| Candidate | Registration, contact editing before verification, bounded search/pagination, CV upload/download and document verification |
+| Hiring | Eligibility projection, hiring processes, offer preparation/email and expiring single-use accept/reject links |
+| Onboarding | Accepted-offer employee reference, assigned IT tasks, HR completion and eventual Hiring completion |
+| CV analysis | Optional asynchronous analysis, source evidence, history, cancellation, retries, budget/quota controls and separate human review |
+| Document processing | Immutable CV versions, PdfPig text extraction, optional local OCR and fail-closed ClamAV scanning |
+| Reliability | EF transactional Outbox/Inbox, business-key deduplication, bounded retries, error queues and tested component recovery |
 
 **Optional AI CV Analysis:** Candidate-owned asynchronous analysis with evidence, HR review, durable jobs and atomic budget limits. Disabled by default; no paid API calls in CI. See [configuration and recovery](docs/ai-cv-analysis.md) and [ADR 004](docs/adr/004-async-cv-analysis.md).
 
@@ -13,6 +28,8 @@ NexusHR connects candidate verification, hiring offers and employee onboarding. 
 ![Synthetic CV evidence and HR review](docs/screenshots/ai-review.png)
 
 [View the actual scanned PDF → Tesseract → qwen3:4b browser result](docs/screenshots/ocr-ollama.png) (synthetic input; zero external API cost).
+
+![Actual local OCR and Ollama analysis of a synthetic CV](docs/screenshots/ocr-ollama.png)
 
 ## Business workflow
 
@@ -95,6 +112,8 @@ Backend infrastructure tests use isolated disposable containers, never business 
 
 CI builds/tests backend/frontend, checks migration drift, audits dependencies, validates staging/load configuration, starts Compose and runs browser E2E. A separate manual workflow publishes reviewed containers from main to GHCR using the selected protected staging/production environment (default staging), requires successful CI for the exact main revision and records OCI revision/source labels plus digest manifests. It neither deploys nor merges PRs. Configure environment protection before releases.
 
+Native checks are explicit opt-ins, rather than silently counted as ordinary test coverage: `RUN_LOCAL_OCR_TESTS=1`, `RUN_CLAMAV_TESTS=1`, `RUN_AI_BROWSER_TESTS=1`, `RUN_OLLAMA_TESTS=1` and `RUN_OCR_OLLAMA_TESTS=1`. Real Ollama checks require the local model endpoint configured through `OLLAMA_TEST_URL`; see the [local AI guide](docs/local-ai-ollama.md). Normal CI uses a deterministic provider and makes no paid AI calls. Do not infer a passing real-model test from a passing fake-provider test.
+
 Engineering follow-up: [bounded overview/access review](docs/audits/engineering-hardening.md), [measured k6/recovery verification and weighted score](docs/audits/recovery-performance-readiness.md), [load fixture](docs/load-testing.md) and [staging guide](docs/staging.md). Recovery fixtures cover business databases/CV hashes, cold broker messages and Keycloak identity state; external TLS/CA and complete timed cutover remain deployment acceptance work.
 
 ## Configuration
@@ -124,4 +143,6 @@ APIs expose `/health/live`, `/health/ready` and `X-Correlation-ID`. Readiness in
 - Backend roles are authoritative; Admin has no implicit override. Only HR completes onboarding. Production requires HTTPS identity metadata and a configured audience mapper. Local JWTs validate issuer/signature/lifetime and authorized party.
 - Offer tokens are random, hashed, expiring and consumed once; responses have rate/body limits and optimistic concurrency protection. Proxy topology must be configured before public exposure.
 - PdfPig-first extraction has optional local OCR and independent fail-closed malware scanning. Candidate Production startup requires scanning. No request body, CV content or bearer token is deliberately logged. OCR/AI can miss or misread information; human source review remains necessary.
-- A real Candidate DB/S3 restore rehearsal and bounded local read-load probe are implemented. Whole-platform recovery, HA, tenant/department restrictions, retention/erasure, production TLS/secrets and representative capacity testing still need deployment-specific acceptance. This repository is not a certified production deployment.
+- Real database/CV, cold RabbitMQ message and Keycloak recovery rehearsals are implemented, alongside an isolated authenticated k6 read/write workload. A coordinated timed whole-platform cutover, HA, department restrictions, retention/erasure, maintained S3 distribution, production TLS/secrets and representative capacity testing still need deployment-specific acceptance. Proposed RPO/RTO values are objectives, not measured guarantees. This repository is not a certified production deployment.
+- Organization-wide reader roles can access candidate contacts, Hiring and Onboarding; CV and analysis access use separate permissions. A department-restricted deployment needs authoritative assignment and membership data before enabling those roles.
+- The legacy Onboarding list is not paginated. Development-tool dependency advisories and SMTP acknowledgement ambiguity remain tracked in the [engineering report](docs/audits/recovery-performance-readiness.md). Local synthetic benchmarks do not establish production capacity or model accuracy.
