@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NexusHR.Candidate.Application;
 using NexusHR.Candidate.Application.Abstractions.Storage;
+using NexusHR.Candidate.Application.Abstractions.Persistence;
 using NexusHR.Candidate.Application.Candidates.UploadCandidateCv;
 using NexusHR.Candidate.Domain.Candidates;
 using NexusHR.Candidate.Infrastructure;
@@ -21,6 +22,20 @@ namespace NexusHR.Candidate.IntegrationTests.Candidates;
 
 public sealed class CvPersistenceTests : IAsyncLifetime
 {
+    [Fact]
+    public async Task SameTimestampPaginationHasStableNonOverlappingOrder()
+    {
+        await using var scope = services.CreateAsyncScope(); var db = scope.ServiceProvider.GetRequiredService<CandidateDbContext>();
+        var ids = Enumerable.Range(1, 3).Select(i => Guid.Parse($"00000000-0000-0000-0000-{i:D12}")).ToArray();
+        foreach (var id in ids) {
+            var candidate = new CandidateEntity(id, "Synthetic", "Ordering", $"{id}@example.test", "0000000000");
+            db.Add(candidate); db.Entry(candidate).Property(x => x.CreatedAtUtc).CurrentValue = DateTime.UnixEpoch;
+        }
+        await db.SaveChangesAsync(); var repository = scope.ServiceProvider.GetRequiredService<ICandidateRepository>();
+        var first = await repository.GetPageAsync(0, 2, null, null, default);
+        var second = await repository.GetPageAsync(2, 2, null, null, default);
+        Assert.Equal(ids.Reverse(), first.Concat(second).Select(x => x.Id));
+    }
     private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder("postgres:16-alpine").Build();
     private readonly IContainer minio = new ContainerBuilder("nexushr-minio:2025-10-15")
         .WithEnvironment("MINIO_ROOT_USER", "test-access")

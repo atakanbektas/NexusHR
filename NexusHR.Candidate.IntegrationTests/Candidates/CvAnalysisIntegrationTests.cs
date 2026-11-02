@@ -15,6 +15,21 @@ namespace NexusHR.Candidate.IntegrationTests.Candidates;
 
 public sealed class CvAnalysisIntegrationTests(AiFixture f) : IClassFixture<AiFixture>
 {
+    [Fact]
+    public async Task CvVersionsAndAnalysisIdsCannotBeSubstitutedAcrossCandidates()
+    {
+        var (candidate, document) = await f.SeedAsync(); var (other, _) = await f.SeedAsync();
+        using var client = f.Client(); var run = await Create(client, candidate, document, Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/candidates/{other}/documents/cv/versions/{document}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"{Path(other)}/{run.Id}")).StatusCode);
+        client.DefaultRequestHeaders.TryAddWithoutValidation("If-Match", $"\"{run.Version}\"");
+        Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsync($"{Path(other)}/{run.Id}/cancel", null)).StatusCode);
+        Assert.Equal(run.Id, (await Get(client, candidate, run.Id)).Id);
+        await Deliver(run.Id);
+        var current = await Get(client, candidate, run.Id);
+        client.DefaultRequestHeaders.Remove("If-Match"); client.DefaultRequestHeaders.TryAddWithoutValidation("If-Match", $"\"{current.Version}\"");
+        (await client.PostAsync($"{Path(candidate)}/{run.Id}/cancel", null)).EnsureSuccessStatusCode();
+    }
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

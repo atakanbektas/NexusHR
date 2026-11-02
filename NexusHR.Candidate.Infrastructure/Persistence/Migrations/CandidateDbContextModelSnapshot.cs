@@ -238,6 +238,9 @@ namespace NexusHR.Candidate.Infrastructure.Persistence.Migrations
                     b.HasIndex("Email")
                         .IsUnique();
 
+                    b.HasIndex("CreatedAtUtc", "Id")
+                        .IsDescending();
+
                     b.ToTable("candidates", (string)null);
                 });
 

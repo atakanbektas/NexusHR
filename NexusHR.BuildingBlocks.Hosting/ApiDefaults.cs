@@ -112,7 +112,7 @@ internal sealed class ApiExceptionHandler(IProblemDetailsService problems, ILogg
         var (status, code, detail) = exception switch
         {
             ValidationException => (400, "Validation.Failed", "One or more values are invalid."),
-            KeyNotFoundException => (404, "Resource.NotFound", exception.Message),
+            KeyNotFoundException => (404, "Resource.NotFound", "The requested resource was not found."),
             DbUpdateConcurrencyException => (409, "Concurrency.Conflict", "The record changed. Reload and retry."),
             DbUpdateException { InnerException: DbException { SqlState: "23505" } } =>
                 (409, "Resource.AlreadyExists", "A record with these unique values already exists."),
@@ -120,7 +120,8 @@ internal sealed class ApiExceptionHandler(IProblemDetailsService problems, ILogg
             ArgumentException => (400, "Request.Invalid", "One or more values are invalid."),
             _ => (500, "Server.Error", "An unexpected error occurred.")
         };
-        if (status == 500) logger.LogError(exception, "Unhandled request failure {TraceId}", context.TraceIdentifier);
+        // Exception messages/ToString can embed SQL values, CV text or provider payloads.
+        if (status == 500) logger.LogError("Unhandled request failure {ExceptionType} {TraceId}", exception.GetType().FullName, context.TraceIdentifier);
         context.Response.StatusCode = status;
         var problem = new ProblemDetails { Status = status, Title = code, Detail = detail };
         problem.Extensions["code"] = code;

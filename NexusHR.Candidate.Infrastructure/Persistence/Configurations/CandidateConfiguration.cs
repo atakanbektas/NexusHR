@@ -30,6 +30,7 @@ internal sealed class CandidateConfiguration
 
         builder.HasIndex(x => x.Email)
             .IsUnique();
+        builder.HasIndex(x => new { x.CreatedAtUtc, x.Id }).IsDescending(true, true);
 
         builder.Property(x => x.PhoneNumber)
             .HasMaxLength(30)

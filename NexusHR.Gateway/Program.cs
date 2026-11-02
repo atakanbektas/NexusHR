@@ -45,6 +45,7 @@ builder.Services.AddHttpClient(
             builder.Configuration,
             "candidate-cluster",
             "candidate-api");
+        client.Timeout = TimeSpan.FromSeconds(10);
     });
 
 builder.Services.AddHttpClient(
@@ -55,6 +56,7 @@ builder.Services.AddHttpClient(
             builder.Configuration,
             "hiring-cluster",
             "hiring-api");
+        client.Timeout = TimeSpan.FromSeconds(10);
     });
 
 builder.Services.AddScoped<CandidateOverviewService>();
