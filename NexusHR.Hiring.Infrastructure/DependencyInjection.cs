@@ -1,4 +1,4 @@
-﻿using MassTransit;
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -90,6 +90,7 @@ public static class DependencyInjection
                 {
                     rabbitMq.Host(
                         rabbitMqHost,
+                        ushort.Parse(rabbitMqSection["Port"] ?? (string.Equals(rabbitMqSection["UseSsl"], "true", StringComparison.OrdinalIgnoreCase) ? "5671" : "5672")),
                         rabbitMqVirtualHost,
                         host =>
                         {
@@ -98,6 +99,10 @@ public static class DependencyInjection
 
                             host.Password(
                                 rabbitMqPassword);
+                            if (string.Equals(rabbitMqSection["UseSsl"], "true", StringComparison.OrdinalIgnoreCase)) host.UseSsl(ssl => {
+                                ssl.Protocol = System.Security.Authentication.SslProtocols.Tls12 | System.Security.Authentication.SslProtocols.Tls13;
+                                ssl.ServerName = rabbitMqHost;
+                            });
                         });
 
                     rabbitMq.ConfigureEndpoints(

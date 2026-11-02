@@ -74,11 +74,12 @@ test("candidate, CV extraction, offer email/acceptance and onboarding completion
     const messages = await response.json();
     const body = String(messages.items?.[0]?.Content?.Body ?? "").replace(/=\r?\n/g, "")
       .replace(/=([0-9a-f]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
-    offerUrl = body.match(/http[^"\s<>]+\/public\/offers\/respond\?token=[^"\s<>]+/)?.[0]?.replaceAll("&amp;", "&") ?? "";
+    offerUrl = body.match(/http[^"\s<>]+\/public\/offers\/respond#token=[^"\s<>]+/)?.[0]?.replaceAll("&amp;", "&") ?? "";
     return Boolean(offerUrl);
   }, { timeout: 45_000 }).toBe(true);
   const anonymous = await browser.newContext();
   const offerPage = await anonymous.newPage();
+  expect(new URL(offerUrl).search).toBe(""); // New capabilities never enter the initial HTTP request query.
   await offerPage.goto(offerUrl);
   offerPage.on("dialog", dialog => dialog.accept());
   await offerPage.getByRole("button", { name: "Teklifi kabul et" }).click();

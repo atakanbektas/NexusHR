@@ -37,7 +37,7 @@ internal sealed class HiringOfferSentConsumer(
         var responseUrl =
             $"{publicWebUrl.TrimEnd('/')}" +
             "/public/offers/respond" +
-            $"?token={Uri.EscapeDataString(
+            $"#token={Uri.EscapeDataString(
                 integrationEvent.ResponseToken)}";
 
         var candidateFullName =

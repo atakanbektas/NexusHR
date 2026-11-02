@@ -128,7 +128,7 @@ public static class DependencyInjection
                 (context, rabbitMq) =>
                 {
                     rabbitMq.Host(
-                        rabbitMqHost, ushort.Parse(rabbitMqSection["Port"] ?? "5672"),
+                        rabbitMqHost, ushort.Parse(rabbitMqSection["Port"] ?? (rabbitMqSection.GetValue<bool>("UseSsl") ? "5671" : "5672")),
                         rabbitMqVirtualHost,
                         host =>
                         {
@@ -137,6 +137,10 @@ public static class DependencyInjection
 
                             host.Password(
                                 rabbitMqPassword);
+                            if (rabbitMqSection.GetValue<bool>("UseSsl")) host.UseSsl(ssl => {
+                                ssl.Protocol = System.Security.Authentication.SslProtocols.Tls12 | System.Security.Authentication.SslProtocols.Tls13;
+                                ssl.ServerName = rabbitMqHost;
+                            });
                         });
 
                     rabbitMq.ReceiveEndpoint("candidate-cv-analysis", endpoint =>

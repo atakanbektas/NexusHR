@@ -22,6 +22,7 @@ import {
 
 import {
   useSearchParams,
+  useLocation,
 } from "react-router-dom";
 
 import {
@@ -41,7 +42,7 @@ export default function PublicOfferResponsePage() {
     useSearchParams();
 
   const token =
-    searchParams.get("token")?.trim() ?? "";
+    (new URLSearchParams(useLocation().hash.slice(1)).get("token") ?? searchParams.get("token"))?.trim() ?? "";
 
   const [
     rejectionReason,

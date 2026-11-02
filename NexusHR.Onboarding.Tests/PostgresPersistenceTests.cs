@@ -1,4 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using NexusHR.BuildingBlocks.Hosting;
 using NexusHR.Onboarding.Domain.EmployeeOnboardings;
 using NexusHR.Onboarding.Infrastructure.Persistence;
 using Testcontainers.PostgreSql;
@@ -7,6 +10,19 @@ namespace NexusHR.Onboarding.Tests;
 
 public sealed class PostgresPersistenceTests
 {
+    [Fact]
+    public async Task ReadinessRejectsReachableDatabaseUntilItsMigrationsAreApplied()
+    {
+        await using var postgres = new PostgreSqlBuilder("postgres:16-alpine").Build(); await postgres.StartAsync();
+        var registrations = new ServiceCollection().AddLogging();
+        registrations.AddDbContext<OnboardingDbContext>(o => o.UseNpgsql(postgres.GetConnectionString()));
+        registrations.AddDatabaseReadiness<OnboardingDbContext>();
+        await using var services = registrations.BuildServiceProvider();
+        var health = services.GetRequiredService<HealthCheckService>();
+        Assert.Equal(HealthStatus.Unhealthy, (await health.CheckHealthAsync()).Status);
+        await using (var scope = services.CreateAsyncScope()) await scope.ServiceProvider.GetRequiredService<OnboardingDbContext>().Database.MigrateAsync();
+        Assert.Equal(HealthStatus.Healthy, (await health.CheckHealthAsync()).Status);
+    }
     [Fact]
     public async Task MigrationPersistsTasksAndRejectsDuplicateHiringProcessesAndConcurrentChanges()
     {
