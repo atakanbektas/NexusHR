@@ -1,0 +1,8 @@
+global: { scrape_interval: 10s, evaluation_interval: 10s }
+scrape_configs:
+  - job_name: application-otlp
+    static_configs: [{ targets: ['engineering-collector:9464'] }]
+  - job_name: containers
+    static_configs: [{ targets: ['engineering-cadvisor:8080'] }]
+  - job_name: docker-linux-vm
+    static_configs: [{ targets: ['engineering-node-exporter:9100'] }]

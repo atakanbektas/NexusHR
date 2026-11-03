@@ -10,7 +10,10 @@ export const NexusHrRoles = {
     "FinanceSpecialist",
   Admin: "Admin",
   Auditor: "Auditor",
+  EngineeringReader: "EngineeringReader",
+  EngineeringOperator: "EngineeringOperator",
 } as const;
+export const EngineeringRoles = [NexusHrRoles.EngineeringReader, NexusHrRoles.EngineeringOperator] as const;
 
 export const CandidateReaderRoles = [
   NexusHrRoles.HrSpecialist,

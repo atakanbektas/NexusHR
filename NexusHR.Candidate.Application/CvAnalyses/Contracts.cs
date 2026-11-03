@@ -37,6 +37,7 @@ public sealed record CvAnalysisResult(IReadOnlyList<CvFact> Facts, IReadOnlyList
 public sealed record CvProviderResponse(CvAnalysisResult Result, string RequestId, int InputTokens, int OutputTokens)
 {
     public CvEvidenceDiagnostics? EvidenceDiagnostics { get; init; }
+    public double? NativeOutputTokensPerSecond { get; init; }
 }
 // Counts only. Never include model text, rejected quotes, prompts or identity in diagnostics.
 public sealed record CvEvidenceDiagnostics(int Proposed, int Accepted, int ShapeRejected, int PageRejected,

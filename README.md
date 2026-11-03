@@ -6,6 +6,8 @@ NexusHR connects candidate verification, hiring offers and employee onboarding. 
 
 Built to demonstrate senior backend engineering: resource authorization, optimistic concurrency, PostgreSQL/S3 compensation, asynchronous workflows, evidence-grounded AI and recovery testing. This is a single-employer application; it does not implement tenant or department ownership isolation.
 
+See the [portfolio presentation and five-minute demo](docs/portfolio.md) for a CV entry, demonstration sequence and engineering discussion points.
+
 ## Implemented features
 
 | Area | Available behavior |
@@ -16,6 +18,7 @@ Built to demonstrate senior backend engineering: resource authorization, optimis
 | CV analysis | Optional asynchronous analysis, source evidence, history, cancellation, retries, budget/quota controls and separate human review |
 | Document processing | Immutable CV versions, PdfPig text extraction, optional local OCR and fail-closed ClamAV scanning |
 | Reliability | EF transactional Outbox/Inbox, business-key deduplication, bounded retries, error queues and tested component recovery |
+| Engineering | Opt-in technical control center: live telemetry, metadata diagnostics, durable experiment history, isolated k6 load/capacity/fault tests and synthetic local-model benchmarks |
 
 **Optional AI CV Analysis:** Candidate-owned asynchronous analysis with evidence, HR review, durable jobs and atomic budget limits. Disabled by default; no paid API calls in CI. See [configuration and recovery](docs/ai-cv-analysis.md) and [ADR 004](docs/adr/004-async-cv-analysis.md).
 
@@ -30,6 +33,16 @@ Built to demonstrate senior backend engineering: resource authorization, optimis
 [View the actual scanned PDF → Tesseract → qwen3:4b browser result](docs/screenshots/ocr-ollama.png) (synthetic input; zero external API cost).
 
 ![Actual local OCR and Ollama analysis of a synthetic CV](docs/screenshots/ocr-ollama.png)
+
+## Engineering Control Center
+
+The optional [Engineering Control Center](docs/engineering-control-center.md) is available at `/engineering` after explicit development provisioning. Ten sections cover overview, infrastructure, databases, messaging, traces, redacted logs, CI, AI, load/capacity and isolated fault experiments. Missing telemetry is shown as unavailable. Dedicated technical roles do not grant candidate or CV access.
+
+![Engineering overview with actual local telemetry](docs/screenshots/engineering-overview.png)
+
+![Measured synthetic lab load experiment](docs/screenshots/engineering-load.png)
+
+Experiments require an explicitly started local agent, operator approval and a separate disposable lab. The Gateway has no Docker socket. Normal CI never runs load tests or paid model calls. This is a trusted local engineering environment; production deployment and unrestricted execution are outside its scope.
 
 ## Business workflow
 
@@ -145,4 +158,4 @@ APIs expose `/health/live`, `/health/ready` and `X-Correlation-ID`. Readiness in
 - PdfPig-first extraction has optional local OCR and independent fail-closed malware scanning. Candidate Production startup requires scanning. No request body, CV content or bearer token is deliberately logged. OCR/AI can miss or misread information; human source review remains necessary.
 - Real database/CV, cold RabbitMQ message and Keycloak recovery rehearsals are implemented, alongside an isolated authenticated k6 read/write workload. A coordinated timed whole-platform cutover, HA, department restrictions, retention/erasure, maintained S3 distribution, production TLS/secrets and representative capacity testing still need deployment-specific acceptance. Proposed RPO/RTO values are objectives, not measured guarantees. This repository is not a certified production deployment.
 - Organization-wide reader roles can access candidate contacts, Hiring and Onboarding; CV and analysis access use separate permissions. A department-restricted deployment needs authoritative assignment and membership data before enabling those roles.
-- The legacy Onboarding list is not paginated. Development-tool dependency advisories and SMTP acknowledgement ambiguity remain tracked in the [engineering report](docs/audits/recovery-performance-readiness.md). Local synthetic benchmarks do not establish production capacity or model accuracy.
+- The legacy Onboarding list is not paginated. SMTP acknowledgement ambiguity remains tracked in the [engineering report](docs/audits/recovery-performance-readiness.md). Current dependency checks and the temporary development-tool override are documented in the [engineering verification](docs/audits/engineering-control-center.md). Local synthetic benchmarks do not establish production capacity or model accuracy.

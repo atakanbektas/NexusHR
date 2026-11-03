@@ -1,6 +1,7 @@
 using NexusHR.BuildingBlocks.Security;
 using NexusHR.BuildingBlocks.Hosting;
 using NexusHR.Gateway.CandidateOverview;
+using NexusHR.Gateway.Engineering;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -68,13 +69,15 @@ builder.Services
             "ReverseProxy"));
 
 builder.AddApiDefaults();
+builder.AddEngineering();
 var app = builder.Build();
-app.UseApiDefaults();
+app.UseApiDefaults(deferRateLimiter: true);
 
 app.UseCors(FrontendCorsPolicy);
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapGet(
     "/health",
@@ -88,6 +91,7 @@ app.MapCandidateOverviewEndpoints(
     AuthenticatedUserPolicy);
 
 app.MapReverseProxy();
+await app.MapEngineeringAsync();
 
 app.Run();
 

@@ -45,6 +45,7 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
             run.Finish(run.LeaseId!.Value, unknown ? CvAnalysisStatus.OutcomeUnknown : CvAnalysisStatus.Failed, null,
                 unknown ? "AI.OutcomeUnknown" : attempt.DispatchedAtUtc.HasValue ? "AI.WorkerInterrupted" : "AI.WorkerInterruptedBeforeDispatch", now);
             attempt.Outcome = run.Status.ToString(); attempt.FinishedAtUtc = now;
+            attempt.ErrorCode = run.ErrorCode; attempt.FailureStage = "Recovery";
             if (!unknown) { attempt.UsageCostUsd = 0; await CvAnalysisStore.SettleAsync(db, run, 0, ct); }
         }
         await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
@@ -70,6 +71,8 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
         }
 
         CvProviderResponse? response = null; string? error = null;
+        var measured = System.Diagnostics.Stopwatch.StartNew();
+        var failureStage = "Input";
         var status = CvAnalysisStatus.Failed; var dispatched = false; CvProviderException? retry = null;
         try
         {
@@ -130,8 +133,10 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
             dispatched = true;
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct); deadline.CancelAfter(TimeSpan.FromSeconds(options.TimeoutSeconds));
             var monitor = options.IsLocal ? MonitorCancellationAsync(scopes, id, lease, deadline) : Task.CompletedTask;
+            failureStage = "Provider";
             try { response = await provider.AnalyzeAsync(pages, run.Model, deadline.Token); }
             finally { await deadline.CancelAsync(); await monitor; }
+            failureStage = "Evidence";
             if (response.InputTokens < 0 || response.OutputTokens < 0) throw new InvalidDataException("Invalid usage.");
             EvidenceValidator.Validate(response.Result, pages);
             response = response with { Result = response.Result with {
@@ -169,6 +174,7 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
         }
         catch (CvProviderException ex)
         {
+            failureStage = ex.Stage ?? failureStage;
             if (ex.Stage is not null)
             {
                 await using var diagnosticsScope = scopes.CreateAsyncScope();
@@ -202,6 +208,12 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
             run.Finish(lease, status, status == CvAnalysisStatus.Succeeded ? JsonSerializer.Serialize(response!.Result, CvAnalysisStore.Json) : null, error, DateTime.UtcNow);
             attempt.Outcome = status.ToString(); attempt.FinishedAtUtc = DateTime.UtcNow; attempt.ProviderRequestId = response?.RequestId;
             attempt.InputTokens = response?.InputTokens; attempt.OutputTokens = response?.OutputTokens; attempt.UsageCostUsd = cost;
+            attempt.ErrorCode = error; attempt.FailureStage = error is null ? null : failureStage;
+            attempt.NativeOutputTokensPerSecond = response?.NativeOutputTokensPerSecond is { } rate && double.IsFinite(rate) && rate >= 0 ? rate : null;
+            if (response?.EvidenceDiagnostics is { } evidence) {
+                attempt.EvidenceProposed=evidence.Proposed;attempt.EvidenceAccepted=evidence.Accepted;
+                attempt.EvidenceRejected=evidence.ShapeRejected+evidence.PageRejected+evidence.QuoteMissing+evidence.QuoteAmbiguous+evidence.ValueMissing;
+            }
             if (cost.HasValue) await CvAnalysisStore.SettleAsync(db, run, cost.Value, finishCt);
             if (retry is not null && (retry.RetryAfter is null || retry.RetryAfter <= TimeSpan.FromMinutes(5)) && number < options.MaxAttempts && !run.CancellationRequested)
             {
@@ -214,6 +226,7 @@ internal sealed class CvAnalysisWorker(IServiceScopeFactory scopes, CvAnalysisOp
                 catch (CvAnalysisException) { /* Terminal failure remains visible when quota cannot fund a retry. */ }
             }
             await db.SaveChangesAsync(finishCt); await tx.CommitAsync(finishCt);
+            AiTelemetry.Record(run.Provider, status.ToString(), measured.Elapsed.TotalSeconds, response);
         }
         return true;
     }

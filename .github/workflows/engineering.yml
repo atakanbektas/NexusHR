@@ -1,0 +1,62 @@
+name: Engineering lab verification (manual)
+on:
+  workflow_dispatch:
+    inputs:
+      approval:
+        description: 'Approve a disposable synthetic lab; no production or shared business data'
+        required: true
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: engineering-lab-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  engineering:
+    if: inputs.approval
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: '24', cache: npm, cache-dependency-path: NexusHR.Web/package-lock.json }
+      - run: npm ci
+        working-directory: NexusHR.Web
+      - run: npx playwright install --with-deps chromium
+        working-directory: NexusHR.Web
+      - name: Generate private development credentials
+        run: node scripts/engineering/bootstrap.mjs
+      - name: Start application and private observability sources
+        run: docker compose --env-file .tools/engineering/engineering.env -f docker-compose.yml -f docker-compose.engineering.yml -f docker-compose.engineering-postgres.yml --profile engineering up --build -d --wait --wait-timeout 300
+      - name: Provision explicit technical identities and metadata-only accounts
+        run: node scripts/engineering/bootstrap.mjs --provision --from-development-containers
+      - name: Prepare isolated synthetic lab
+        run: |
+          docker volume create nexushr_ollama-models
+          docker run --rm -v nexushr_ollama-models:/cache busybox:1.37.0 mkdir -p /cache/models/manifests /cache/models/blobs
+          docker compose --env-file .tools/engineering/engineering.env -f docker-compose.engineering-lab.yml build
+          docker compose --env-file .tools/engineering/engineering.env -f docker-compose.engineering-lab.yml up -d candidate-db hiring-db rabbitmq candidate-storage lab-keycloak lab-ollama fault-proxy
+          node scripts/engineering/lab.mjs --initialize
+          docker compose --env-file .tools/engineering/engineering.env -f docker-compose.engineering-lab.yml up -d --wait --wait-timeout 240
+      - name: Start the explicit local executor
+        run: nohup node scripts/engineering/agent.mjs > .tools/engineering/agent.log 2>&1 &
+      - name: Actual storage privacy verification
+        run: node scripts/engineering/verify-telemetry.mjs
+      - name: Low-load, cancellation, SLO and fault recovery browser checks
+        working-directory: NexusHR.Web
+        env:
+          RUN_ENGINEERING_TESTS: '1'
+          RUN_ENGINEERING_EXECUTION: '1'
+        run: npm run test:e2e -- engineering.spec.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: engineering-browser-results
+          path: |
+            NexusHR.Web/playwright-report
+            .tools/engineering/agent.log
+          # Generated credentials, raw model/CV data and env files are never artifacts.
+      - name: Stop disposable lab processes without deleting volumes
+        if: always()
+        run: docker compose --env-file .tools/engineering/engineering.env -f docker-compose.engineering-lab.yml stop

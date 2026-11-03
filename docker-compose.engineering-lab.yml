@@ -1,0 +1,146 @@
+# Separate project, separate issuer, RAM-only synthetic stores. Never extend business volumes.
+name: nexushr-engineering-lab
+services:
+  candidate-db:
+    extends: { file: docker-compose.load.yml, service: candidate-db }
+    environment: { POSTGRES_PASSWORD: '${ENGINEERING_LAB_DB_PASSWORD:?Private lab password}' }
+    tmpfs: [/var/lib/postgresql/data]
+    labels: { nexushr.engineering.disposable: 'true' }
+    mem_limit: 256m
+    cpus: 1
+  hiring-db:
+    extends: { file: docker-compose.load.yml, service: hiring-db }
+    environment: { POSTGRES_PASSWORD: '${ENGINEERING_LAB_DB_PASSWORD:?Private lab password}' }
+    tmpfs: [/var/lib/postgresql/data]
+    labels: { nexushr.engineering.disposable: 'true' }
+    mem_limit: 256m
+    cpus: 1
+  rabbitmq:
+    extends: { file: docker-compose.load.yml, service: rabbitmq }
+    environment: { RABBITMQ_DEFAULT_PASS: '${ENGINEERING_LAB_BROKER_PASSWORD:?Private lab password}' }
+    hostname: engineering-lab-rabbitmq
+    tmpfs: [/var/lib/rabbitmq]
+    labels: { nexushr.engineering.disposable: 'true' }
+    mem_limit: 384m
+    cpus: 1
+  candidate-storage:
+    extends: { file: docker-compose.load.yml, service: candidate-storage }
+    environment: { MINIO_ROOT_PASSWORD: '${ENGINEERING_LAB_STORAGE_PASSWORD:?Private lab password}' }
+    tmpfs: [/data]
+    labels: { nexushr.engineering.disposable: 'true' }
+    mem_limit: 256m
+    cpus: 1
+  lab-keycloak:
+    image: quay.io/keycloak/keycloak:26.7.0
+    command: [start-dev, --import-realm]
+    environment:
+      KC_HEALTH_ENABLED: 'true'
+      KC_HOSTNAME: http://lab-keycloak:8080
+    ports: [127.0.0.1:5455:8080]
+    volumes: ['${ENGINEERING_LAB_REALM_FILE:?Generated synthetic realm file}:/opt/keycloak/data/import/nexushr-engineering-lab-realm.json:ro']
+    tmpfs: [/opt/keycloak/data]
+    labels: { nexushr.engineering.disposable: 'true' }
+    mem_limit: 512m
+    cpus: 1
+    healthcheck:
+      test: [CMD-SHELL, 'bash -ec ''exec 3<>/dev/tcp/127.0.0.1/9000; printf "GET /health/ready HTTP/1.0\r\n\r\n" >&3; cat <&3 | grep -q UP''']
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 30
+  fault-proxy:
+    image: ghcr.io/shopify/toxiproxy@sha256:5d3dae09bc185dcc5ff6cf43abf6062a4a720aff0c4306a471e773acdcd107aa
+    ports: [127.0.0.1:5474:8474]
+    labels: { nexushr.engineering.disposable: 'true' }
+    mem_limit: 64m
+    cpus: 0.5
+  lab-ollama:
+    image: ollama/ollama:0.40.12@sha256:20d1bbfbabe1c97ba4b16301f08a20d8484bcf77047742a3cb71c613d8e12d0b
+    environment:
+      OLLAMA_NO_CLOUD: '1'
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_NUM_PARALLEL: '1'
+      OLLAMA_MAX_LOADED_MODELS: '1'
+      OLLAMA_MAX_QUEUE: '2'
+    volumes:
+      - type: volume
+        source: engineering-model-cache
+        target: /root/.ollama/models
+        read_only: true
+        volume: { subpath: models }
+    tmpfs: [/root/.ollama]
+    networks:
+      lab-ai: { aliases: [nexushr-local-ai] }
+    labels: { nexushr.engineering.disposable: 'true' }
+    mem_limit: 6g
+    cpus: 4
+  candidate-api:
+    extends: { file: docker-compose.load.yml, service: candidate-api }
+    image: nexushr-engineering-lab-candidate
+    environment:
+      ConnectionStrings__CandidateDatabase: Host=fault-proxy;Port=8666;Database=nexushr_candidate;Username=postgres;Password=${ENGINEERING_LAB_DB_PASSWORD:?Private lab password}
+      Minio__SecretKey: ${ENGINEERING_LAB_STORAGE_PASSWORD:?Private lab password}
+      RabbitMq__Password: ${ENGINEERING_LAB_BROKER_PASSWORD:?Private lab password}
+      Keycloak__Authority: http://lab-keycloak:8080/realms/nexushr-engineering-lab
+      Keycloak__MetadataAddress: http://lab-keycloak:8080/realms/nexushr-engineering-lab/.well-known/openid-configuration
+      Keycloak__ClientId: nexushr-lab
+      RabbitMq__Host: fault-proxy
+      RabbitMq__Port: '8667'
+      OTEL_EXPORTER_OTLP_ENDPOINT: ''
+      CvAnalysis__Enabled: 'true'
+      CvAnalysis__Provider: Ollama
+      CvAnalysis__Model: ${ENGINEERING_LAB_MODEL:-qwen3:4b}
+      CvAnalysis__AllowExternalProcessing: 'false'
+      CvAnalysis__Ollama__BaseUrl: http://nexushr-local-ai:11434
+      CvAnalysis__MaxOutputTokens: '4000'
+      CvAnalysis__TimeoutSeconds: '240'
+    networks: [default, lab-ai]
+    labels: { nexushr.engineering.disposable: 'true' }
+    mem_limit: 512m
+    cpus: 2
+    depends_on: !override
+      candidate-db: { condition: service_healthy }
+      candidate-storage: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      lab-keycloak: { condition: service_healthy }
+      fault-proxy: { condition: service_started }
+      lab-ollama: { condition: service_started }
+  hiring-api:
+    extends: { file: docker-compose.load.yml, service: hiring-api }
+    image: nexushr-engineering-lab-hiring
+    environment:
+      ConnectionStrings__HiringDatabase: Host=hiring-db;Database=nexushr_hiring;Username=postgres;Password=${ENGINEERING_LAB_DB_PASSWORD:?Private lab password}
+      RabbitMq__Password: ${ENGINEERING_LAB_BROKER_PASSWORD:?Private lab password}
+      Keycloak__Authority: http://lab-keycloak:8080/realms/nexushr-engineering-lab
+      Keycloak__MetadataAddress: http://lab-keycloak:8080/realms/nexushr-engineering-lab/.well-known/openid-configuration
+      Keycloak__ClientId: nexushr-lab
+      RabbitMq__Host: fault-proxy
+      RabbitMq__Port: '8667'
+      OTEL_EXPORTER_OTLP_ENDPOINT: ''
+    labels: { nexushr.engineering.disposable: 'true' }
+    mem_limit: 384m
+    cpus: 1
+    depends_on: !override
+      hiring-db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      fault-proxy: { condition: service_started }
+      lab-keycloak: { condition: service_healthy }
+  gateway:
+    extends: { file: docker-compose.load.yml, service: gateway }
+    image: nexushr-engineering-lab-gateway
+    ports: !override [127.0.0.1:5450:8080]
+    environment:
+      Keycloak__Authority: http://lab-keycloak:8080/realms/nexushr-engineering-lab
+      Keycloak__MetadataAddress: http://lab-keycloak:8080/realms/nexushr-engineering-lab/.well-known/openid-configuration
+      Keycloak__ClientId: nexushr-lab
+      Engineering__Enabled: 'false'
+      OTEL_EXPORTER_OTLP_ENDPOINT: ''
+    labels: { nexushr.engineering.disposable: 'true' }
+    mem_limit: 256m
+    cpus: 1
+networks:
+  lab-ai: { internal: true }
+volumes:
+  engineering-model-cache:
+    external: true
+    name: ${ENGINEERING_MODEL_CACHE_VOLUME:-nexushr_ollama-models}

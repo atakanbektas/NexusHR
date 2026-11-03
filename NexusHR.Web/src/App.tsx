@@ -15,6 +15,7 @@ import {
   OnboardingReaderRoles,
   hasAnyRole,
   NexusHrRoles,
+  EngineeringRoles,
 } from "./auth/roles";
 const CandidateDetailPage = lazy(() => import("./features/candidates/CandidateDetailPage"));
 const CandidateListPage = lazy(() => import("./features/candidates/CandidateListPage"));
@@ -22,12 +23,13 @@ const OnboardingPage = lazy(() => import("./features/onboarding/OnboardingPage")
 const CreateCandidateFromCvPage = lazy(() => import("./features/candidates/CreateCandidateFromCvPage"));
 const HiringProcessDetailPage = lazy(() => import("./features/hiring/HiringProcessDetailPage"));
 const PublicOfferResponsePage = lazy(() => import("./features/publicOffers/PublicOfferResponsePage"));
+const EngineeringPage = lazy(() => import("./features/engineering/EngineeringPage"));
 
 function App() {
   const defaultPath =
     hasAnyRole(CandidateReaderRoles)
       ? "/candidates"
-      : hasAnyRole(OnboardingReaderRoles) ? "/onboardings" : "/access-denied";
+      : hasAnyRole(OnboardingReaderRoles) ? "/onboardings" : hasAnyRole(EngineeringRoles) ? "/engineering" : "/access-denied";
 
   return (
     <BrowserRouter>
@@ -35,6 +37,7 @@ function App() {
 
       <Suspense fallback={<Alert severity="info">Sayfa yükleniyor…</Alert>}>
       <Routes>
+        <Route path="/engineering/*" element={<RoleGuard allowedRoles={EngineeringRoles}><EngineeringPage /></RoleGuard>} />
         <Route path="/onboardings" element={<RoleGuard allowedRoles={OnboardingReaderRoles}><OnboardingPage key="list" /></RoleGuard>} />
         <Route path="/onboardings/:id" element={<RoleGuard allowedRoles={OnboardingReaderRoles}><OnboardingPage key="detail" /></RoleGuard>} />
         <Route

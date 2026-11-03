@@ -1,0 +1,8 @@
+@media print {
+  body * { visibility: hidden; }
+  #engineering-report, #engineering-report * { visibility: visible; }
+  #engineering-report { position: absolute; inset: 0 auto auto 0; width: 100%; color: #111; background: white; }
+  #engineering-report button { display: none; }
+  #engineering-report table { break-inside: auto; }
+  #engineering-report tr { break-inside: avoid; }
+}

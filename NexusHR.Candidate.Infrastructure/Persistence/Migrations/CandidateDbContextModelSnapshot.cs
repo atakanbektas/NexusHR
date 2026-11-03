@@ -473,6 +473,23 @@ namespace NexusHR.Candidate.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("DispatchedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int?>("EvidenceAccepted")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("EvidenceProposed")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("EvidenceRejected")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("FailureStage")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<DateTime?>("FinishedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -482,6 +499,9 @@ namespace NexusHR.Candidate.Infrastructure.Persistence.Migrations
 
                     b.Property<int?>("InputTokens")
                         .HasColumnType("integer");
+
+                    b.Property<double?>("NativeOutputTokensPerSecond")
+                        .HasColumnType("double precision");
 
                     b.Property<int>("Number")
                         .HasColumnType("integer");
@@ -516,6 +536,9 @@ namespace NexusHR.Candidate.Infrastructure.Persistence.Migrations
                         .HasColumnType("numeric(18,8)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("StartedAtUtc")
+                        .IsDescending();
 
                     b.HasIndex("AnalysisId", "Number")
                         .IsUnique();

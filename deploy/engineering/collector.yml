@@ -1,0 +1,51 @@
+receivers:
+  otlp:
+    protocols:
+      grpc: { endpoint: '0.0.0.0:4317' }
+      http: { endpoint: '0.0.0.0:4318' }
+processors:
+  memory_limiter: { check_interval: 1s, limit_mib: 192, spike_limit_mib: 32 }
+  transform/privacy:
+    error_mode: propagate
+    trace_statements:
+      - context: resource
+        statements: ['keep_keys(attributes, ["service.name"])']
+      - context: span
+        statements:
+          - 'set(name, "operation")'
+          - 'set(name, attributes["http.route"]) where attributes["http.route"] != nil'
+          - 'set(name, "business.offer-decision") where attributes["nexushr.operation"] == "offer-decision"'
+          - 'set(name, "dependency.smtp-send") where attributes["nexushr.operation"] == "smtp-send"'
+          - 'set(status.message, "")'
+          - 'set(trace_state, "")'
+          - 'keep_keys(attributes, ["http.request.method", "http.response.status_code", "error.type", "db.system.name", "db.operation.name", "messaging.operation.type"])'
+      - context: spanevent
+        statements: ['set(name, "event")', 'keep_keys(attributes, ["exception.type"])']
+    log_statements:
+      - context: resource
+        statements: ['keep_keys(attributes, ["service.name"])']
+      - context: log
+        statements:
+          - 'set(body, "Application event (content redacted)")'
+          - 'keep_keys(attributes, ["ExceptionType", "exception.type"])'
+    metric_statements:
+      - context: resource
+        statements: ['keep_keys(attributes, ["service.name"])']
+      - context: datapoint
+        statements: ['keep_keys(attributes, ["http.request.method", "http.response.status_code", "error.type", "state", "db.client.connection.state", "provider", "outcome", "disposition", "direction"])']
+  batch: { timeout: 1s, send_batch_size: 256, send_batch_max_size: 512 }
+exporters:
+  prometheus:
+    endpoint: '0.0.0.0:9464'
+    resource_to_telemetry_conversion: { enabled: true }
+  otlp_grpc/tempo:
+    endpoint: engineering-tempo:4317
+    tls: { insecure: true }
+  otlp_http/loki: { endpoint: 'http://engineering-loki:3100/otlp' }
+service:
+  telemetry:
+    logs: { level: warn }
+  pipelines:
+    traces: { receivers: [otlp], processors: [memory_limiter, transform/privacy, batch], exporters: [otlp_grpc/tempo] }
+    metrics: { receivers: [otlp], processors: [memory_limiter, transform/privacy, batch], exporters: [prometheus] }
+    logs: { receivers: [otlp], processors: [memory_limiter, transform/privacy, batch], exporters: [otlp_http/loki] }
