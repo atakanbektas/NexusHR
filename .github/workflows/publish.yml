@@ -58,7 +58,7 @@ jobs:
           digest="$(docker push --quiet "ghcr.io/$repo-$name:$GITHUB_SHA")"
           [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
           jq -n --arg service "$SERVICE" --arg sha "$GITHUB_SHA" --arg image "ghcr.io/$repo-$name@$digest" '{service:$service,revision:$sha,image:$image}' > "release-$name.json"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-${{ matrix.service }}-${{ github.sha }}
           path: release-*.json
