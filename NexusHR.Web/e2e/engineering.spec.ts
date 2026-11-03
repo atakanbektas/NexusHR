@@ -7,6 +7,8 @@ import {
 import { readFile, mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 const api = "http://localhost:5000/api/engineering";
+// Generated passwords must never appear in failure traces/videos uploaded by manual CI.
+test.use({ trace: "off", screenshot: "off", video: "off" });
 type Report = {
   code: string;
   samples: { requests: number; p95Ms: number }[];
@@ -160,13 +162,51 @@ test("technical reader sees real sources without receiving HR/CV or execution pe
       path: resolve("../docs/screenshots/engineering-overview.png"),
       fullPage: true,
     });
-    await page.getByRole("navigation", { name: "Engineering navigation" })
-      .getByRole("link", { name: "AI Observability", exact: true }).click();
+    await page
+      .getByRole("navigation", { name: "Engineering navigation" })
+      .getByRole("link", { name: "AI Observability", exact: true })
+      .click();
     await expect(page.getByText("bilingual-v1").first()).toBeVisible();
     await page.mouse.move(1200, 20);
     await page.waitForTimeout(250);
-    await page.screenshot({ path: resolve("../docs/screenshots/engineering-ai.png"), fullPage: true });
+    await page.screenshot({
+      path: resolve("../docs/screenshots/engineering-ai.png"),
+      fullPage: true,
+    });
   }
+});
+
+test("Grafana requires authentication and provisions a dashboard backed by actual Prometheus samples", async ({
+  request,
+}) => {
+  const credentials = JSON.parse(
+    await readFile(resolve("../.tools/engineering/access.json"), "utf8"),
+  );
+  const root = "http://127.0.0.1:3000";
+  expect(
+    (
+      await request.get(`${root}/api/dashboards/uid/nexushr-engineering`)
+    ).status(),
+  ).toBe(401);
+  const headers = {
+    Authorization: `Basic ${Buffer.from(`engineering:${credentials.grafana}`).toString("base64")}`,
+  };
+  const response = await request.get(
+    `${root}/api/dashboards/uid/nexushr-engineering`,
+    { headers },
+  );
+  expect(response.status()).toBe(200);
+  const { dashboard } = await response.json();
+  expect(dashboard.title).toBe("NexusHR Engineering");
+  expect(dashboard.panels).toHaveLength(4);
+  const metric = await request.get(
+    `${root}/api/datasources/proxy/uid/prometheus/api/v1/query?query=${encodeURIComponent("sum(http_server_request_duration_seconds_count)")}`,
+    { headers },
+  );
+  expect(metric.status()).toBe(200);
+  const samples = (await metric.json()).data.result;
+  expect(samples.length).toBeGreaterThan(0);
+  expect(Number(samples[0].value[1])).toBeGreaterThan(0);
 });
 
 test("cached local models are benchmarked on the fixed synthetic PDF without changing main AI", async ({

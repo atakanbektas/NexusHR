@@ -70,8 +70,15 @@ services:
       GF_ANALYTICS_CHECK_FOR_UPDATES: 'false'
     ports: [127.0.0.1:3000:3000]
     volumes: [./deploy/engineering/grafana:/etc/grafana/provisioning/datasources:ro, ./deploy/engineering/grafana-dashboards:/etc/grafana/provisioning/dashboards:ro, ./deploy/engineering/dashboards:/var/lib/grafana/dashboards:ro, engineering-grafana-data:/var/lib/grafana]
-    networks: [engineering]
+    # Docker does not publish ports for a container attached only to internal networks.
+    # The UI bridge contains Grafana only; telemetry sources remain private.
+    networks: [engineering, engineering-ui]
     mem_limit: 512m
+    healthcheck:
+      test: [CMD-SHELL, 'wget -q -O /dev/null http://127.0.0.1:3000/api/health']
+      interval: 5s
+      timeout: 3s
+      retries: 30
   # This exporter has host visibility. Enable only on a trusted development machine.
   # A read-only socket mount does NOT make Docker's API read-only. No app/agent shares it.
   engineering-cadvisor:
@@ -120,6 +127,7 @@ services:
       OTEL_EXPORTER_OTLP_PROTOCOL: grpc
       OTEL_METRIC_EXPORT_INTERVAL: '5000'
 networks:
+  engineering-ui: {}
   engineering: { internal: true }
 volumes:
   engineering-db-data:

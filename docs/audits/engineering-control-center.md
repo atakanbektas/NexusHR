@@ -14,6 +14,7 @@ Scope: dedicated `codex/engineering-control-center` branch; no main merge or pro
 | Node lab-boundary and benchmark-cancellation tests | 7 passed |
 | Ordinary business Playwright | 3 passed: onboarding/offer flow and authorization/legacy offer checks |
 | Engineering reader browser | Passed against actual Keycloak, telemetry, PostgreSQL, RabbitMQ and candidate authorization |
+| Grafana authenticated dashboard | Passed: unauthenticated 401, provisioned four-panel dashboard and actual Prometheus samples; loopback HTTP health 200 |
 | Engineering load browser | Passed: real 5-VU k6, JSON/CSV downloads and durable cancellation |
 | Capacity / fault browser | 5 passed: observed SLO breach, Candidate restart, broker outage, database outage and injected latency |
 | Real bilingual synthetic model benchmark | Passed with both cached models; durable source-validated facts and UI history |
@@ -44,5 +45,7 @@ One deterministic AI browser case timed out waiting for Keycloak during containe
 ## Preservation and limitations
 
 Final preservation snapshot retained all baseline identifiers/checksums: 62 candidate/document entries, 13 hiring entries, 52 onboarding/task entries, 25 identity entries, 30 physical object-file checksums and 8 business volume names. Technical accounts and metadata roles were added explicitly; existing accounts were not reset. New engineering telemetry/history volumes are separate. The only business schema change adds nullable AI-attempt metadata columns and an index.
+
+Final runtime checks found and fixed a Grafana access issue: Docker did not publish a port for a container attached exclusively to an internal network. Grafana now joins a separate UI bridge containing no other service, publishes loopback only, and has an HTTP health check. Its authenticated dashboard and actual datasource query were verified after the change. Engineering Playwright failure traces/videos/screenshots are disabled so generated passwords cannot enter uploaded traces; deliberate documentation captures contain only sanitized diagnostic data.
 
 No arbitrary EXPLAIN/SQL, broker payload reads/replay, raw exception messages, causal critical-path guarantee, parsed CI artifact test/vulnerability totals, workflow/deployment writes or production capacity certification is implemented. These are documented constraints rather than fabricated dashboard values. CPU/host metrics describe Docker's Linux VM; shared-host load results include interference. Missing metrics remain unavailable. Manual lab GitHub workflow execution and final PR CI outcomes must be checked on GitHub separately from local results.

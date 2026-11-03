@@ -1,6 +1,6 @@
 # Synthetic browser capture
 
-`engineering-overview.png` and `engineering-load.png` are actual authenticated Playwright captures of the opt-in local Engineering Control Center. Charts and experiment reports come from running services and the isolated synthetic lab; no source metrics or run responses are mocked. The technical development account has no candidate/CV permissions. Regenerate deliberately with `RUN_ENGINEERING_TESTS=1`, `RUN_ENGINEERING_EXECUTION=1` and `CAPTURE_ENGINEERING=1`. Never capture credentials or live CV data.
+`engineering-overview.png`, `engineering-load.png` and `engineering-ai.png` are actual authenticated Playwright captures of the opt-in local Engineering Control Center. Charts and experiment reports come from running services and the isolated synthetic lab; no source metrics or run responses are mocked. The technical development account has no candidate/CV permissions. Regenerate deliberately with `RUN_ENGINEERING_TESTS=1`, `RUN_ENGINEERING_EXECUTION=1` and `CAPTURE_ENGINEERING=1`. The overview/AI captures can also be refreshed using the reader test without executing another experiment. Never capture credentials or live CV data.
 
 ![CV evidence, document preview and human review](ai-review.png)
 
