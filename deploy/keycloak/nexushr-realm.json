@@ -36,6 +36,14 @@
       {
         "name": "Auditor",
         "description": "Süreçleri salt okunur olarak inceler."
+      },
+      {
+        "name": "EngineeringReader",
+        "description": "Explicit technical control-center permission; no implicit HR/CV access."
+      },
+      {
+        "name": "EngineeringOperator",
+        "description": "Explicit technical control-center permission; no implicit HR/CV access."
       }
     ]
   },
