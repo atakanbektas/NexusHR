@@ -6,6 +6,8 @@ NexusHR connects candidate verification, hiring offers and employee onboarding. 
 
 Built to demonstrate senior backend engineering: resource authorization, optimistic concurrency, PostgreSQL/S3 compensation, asynchronous workflows, evidence-grounded AI and recovery testing. This is a single-employer application; it does not implement tenant or department ownership isolation.
 
+See the [portfolio presentation and five-minute demo](docs/portfolio.md) for a CV entry, demonstration sequence and engineering discussion points.
+
 ## Implemented features
 
 | Area | Available behavior |
@@ -156,4 +158,4 @@ APIs expose `/health/live`, `/health/ready` and `X-Correlation-ID`. Readiness in
 - PdfPig-first extraction has optional local OCR and independent fail-closed malware scanning. Candidate Production startup requires scanning. No request body, CV content or bearer token is deliberately logged. OCR/AI can miss or misread information; human source review remains necessary.
 - Real database/CV, cold RabbitMQ message and Keycloak recovery rehearsals are implemented, alongside an isolated authenticated k6 read/write workload. A coordinated timed whole-platform cutover, HA, department restrictions, retention/erasure, maintained S3 distribution, production TLS/secrets and representative capacity testing still need deployment-specific acceptance. Proposed RPO/RTO values are objectives, not measured guarantees. This repository is not a certified production deployment.
 - Organization-wide reader roles can access candidate contacts, Hiring and Onboarding; CV and analysis access use separate permissions. A department-restricted deployment needs authoritative assignment and membership data before enabling those roles.
-- The legacy Onboarding list is not paginated. Development-tool dependency advisories and SMTP acknowledgement ambiguity remain tracked in the [engineering report](docs/audits/recovery-performance-readiness.md). Local synthetic benchmarks do not establish production capacity or model accuracy.
+- The legacy Onboarding list is not paginated. SMTP acknowledgement ambiguity remains tracked in the [engineering report](docs/audits/recovery-performance-readiness.md). Current dependency checks and the temporary development-tool override are documented in the [engineering verification](docs/audits/engineering-control-center.md). Local synthetic benchmarks do not establish production capacity or model accuracy.
