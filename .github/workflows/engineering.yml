@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with: { node-version: '24', cache: npm, cache-dependency-path: NexusHR.Web/package-lock.json }
       - run: npm ci
         working-directory: NexusHR.Web
