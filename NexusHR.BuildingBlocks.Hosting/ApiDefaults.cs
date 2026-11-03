@@ -50,13 +50,15 @@ public static class ApiDefaults
         builder.Services.Configure<MvcOptions>(options => options.Filters.Add<ProblemDetailsFilter>());
         builder.Services.AddHealthChecks();
         var telemetry = builder.Services.AddOpenTelemetry()
-            .ConfigureResource(resource => resource.AddService(builder.Environment.ApplicationName))
+            .ConfigureResource(resource => resource.AddService(builder.Configuration["OTEL_SERVICE_NAME"] ?? builder.Environment.ApplicationName))
             .WithTracing(tracing => tracing.AddAspNetCoreInstrumentation(options =>
                 {
                     // Public offer tokens must never become telemetry attributes.
-                    options.Filter = context => !context.Request.Path.StartsWithSegments("/api/public/offers");
-                }).AddHttpClientInstrumentation().AddSource("MassTransit"))
-            .WithMetrics(metrics => metrics.AddAspNetCoreInstrumentation().AddHttpClientInstrumentation());
+                    options.Filter = context => !context.Request.Path.StartsWithSegments("/api/public/offers") &&
+                        !context.Request.Path.StartsWithSegments("/health") && !context.Request.Path.StartsWithSegments("/api/engineering-agent");
+                }).AddHttpClientInstrumentation().AddSource("MassTransit", "Npgsql", "NexusHR.Business"))
+            .WithMetrics(metrics => metrics.AddAspNetCoreInstrumentation().AddHttpClientInstrumentation()
+                .AddMeter("Npgsql", "MassTransit", "NexusHR.CvAnalysis", "System.Runtime"));
         if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
         {
             telemetry.WithTracing(tracing => tracing.AddOtlpExporter())
@@ -80,7 +82,7 @@ public static class ApiDefaults
     private static bool IsHttps(string? value) => Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
         uri.Scheme == "https" && uri.UserInfo.Length == 0 && uri.Query.Length == 0 && uri.Fragment.Length == 0;
 
-    public static void UseApiDefaults(this WebApplication app)
+    public static void UseApiDefaults(this WebApplication app, bool deferRateLimiter = false)
     {
         app.UseExceptionHandler();
         app.UseStatusCodePages(async status =>
@@ -97,7 +99,7 @@ public static class ApiDefaults
                 .BeginScope(new Dictionary<string, object> { ["CorrelationId"] = correlationId });
             await next(context);
         });
-        app.UseRateLimiter();
+        if (!deferRateLimiter) app.UseRateLimiter();
         app.MapHealthChecks("/health/live", new() { Predicate = _ => false });
         app.MapHealthChecks("/health/ready");
     }
@@ -134,6 +136,7 @@ internal sealed class ApiExceptionHandler(IProblemDetailsService problems, ILogg
         }
         var (status, code, detail) = exception switch
         {
+            BadHttpRequestException bad => (bad.StatusCode, "Request.Invalid", "The request body is invalid or exceeds its size limit."),
             ValidationException => (400, "Validation.Failed", "One or more values are invalid."),
             KeyNotFoundException => (404, "Resource.NotFound", "The requested resource was not found."),
             DbUpdateConcurrencyException => (409, "Concurrency.Conflict", "The record changed. Reload and retry."),

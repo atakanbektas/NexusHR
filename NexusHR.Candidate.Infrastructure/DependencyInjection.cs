@@ -23,6 +23,7 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        services.AddScoped<IEngineeringAiReader, EngineeringAiReader>();
         var connectionString =
             configuration.GetConnectionString(
                 "CandidateDatabase");

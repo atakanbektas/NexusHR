@@ -127,6 +127,7 @@ internal sealed class OllamaCvAnalysisProvider(HttpClient http, CvAnalysisOption
             var result = new CvAnalysisResult(facts, warnings);
             EvidenceValidator.Validate(result, pages);
             return new(result, $"ollama:{digest}", root.GetProperty("prompt_eval_count").GetInt32(), root.GetProperty("eval_count").GetInt32()) {
+                NativeOutputTokensPerSecond = NativeTokenRate(root),
                 EvidenceDiagnostics = new(wire.Facts.Count, facts.Count, rejections.Count(x => x == EvidenceRejection.Shape),
                     rejections.Count(x => x == EvidenceRejection.Page), rejections.Count(x => x == EvidenceRejection.QuoteMissing),
                     rejections.Count(x => x == EvidenceRejection.QuoteAmbiguous), rejections.Count(x => x == EvidenceRejection.ValueMissing), normalized, duplicates) };
@@ -135,6 +136,13 @@ internal sealed class OllamaCvAnalysisProvider(HttpClient http, CvAnalysisOption
         catch (HttpRequestException) { throw new CvProviderException("AI.OllamaUnavailable", true); }
         catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException or FormatException or InvalidDataException or ArgumentException)
         { throw new CvProviderException("AI.InvalidResponse", stage: "JsonOrProviderEnvelope"); }
+    }
+    internal static double? NativeTokenRate(JsonElement root)
+    {
+        if (!root.TryGetProperty("eval_duration", out var duration) || duration.ValueKind!=JsonValueKind.Number || !duration.TryGetInt64(out var ns) || ns <= 0 ||
+            !root.TryGetProperty("eval_count", out var count) || count.ValueKind!=JsonValueKind.Number || !count.TryGetInt32(out var tokens) || tokens < 0) return null;
+        var rate = tokens / (ns / 1_000_000_000d);
+        return double.IsFinite(rate) && rate <= 1_000_000 ? rate : null;
     }
     private static async Task<string> ReadBoundedAsync(HttpResponseMessage response, CancellationToken ct)
     {

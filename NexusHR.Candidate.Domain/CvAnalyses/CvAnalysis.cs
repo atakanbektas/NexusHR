@@ -89,6 +89,12 @@ public sealed class CvAnalysisAttempt
     public DateTime? DispatchedAtUtc { get; set; }
     public DateTime? FinishedAtUtc { get; set; }
     public string Outcome { get; set; } = "Running";
+    public string? ErrorCode { get; set; }
+    public string? FailureStage { get; set; }
+    public double? NativeOutputTokensPerSecond { get; set; }
+    public int? EvidenceProposed { get; set; }
+    public int? EvidenceAccepted { get; set; }
+    public int? EvidenceRejected { get; set; }
     public string? ProviderRequestId { get; set; }
     public int? InputTokens { get; set; }
     public int? OutputTokens { get; set; }

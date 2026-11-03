@@ -26,6 +26,8 @@ internal sealed class AnalysisMapping : IEntityTypeConfiguration<CvAnalysis>, IE
     public void Configure(EntityTypeBuilder<CvAnalysisAttempt> e)
     {
         e.ToTable("cv_analysis_attempts"); e.HasKey(x => x.Id);
+        e.HasIndex(x => x.StartedAtUtc).IsDescending();
+        e.Property(x => x.ErrorCode).HasMaxLength(100); e.Property(x => x.FailureStage).HasMaxLength(64);
         e.HasIndex(x => new { x.AnalysisId, x.Number }).IsUnique();
         e.Property(x => x.ReservedUsd).HasPrecision(18, 8); e.Property(x => x.UsageCostUsd).HasPrecision(18, 8);
         e.Property(x => x.InputRate).HasPrecision(18, 8); e.Property(x => x.OutputRate).HasPrecision(18, 8);

@@ -11,12 +11,20 @@ internal sealed class MailKitEmailSender(
     IOptions<SmtpOptions> options)
     : IEmailSender
 {
+    private static readonly System.Diagnostics.ActivitySource Telemetry = new("NexusHR.Business");
     private readonly SmtpOptions _options =
         options.Value;
 
     public async Task SendAsync(
         EmailMessage message,
         CancellationToken cancellationToken)
+    {
+        using var activity=Telemetry.StartActivity("SMTP send",System.Diagnostics.ActivityKind.Client);
+        activity?.SetTag("nexushr.operation","smtp-send");
+        try {await SendCoreAsync(message,cancellationToken);}
+        catch(Exception error) {activity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error);activity?.SetTag("error.type",error.GetType().FullName);throw;}
+    }
+    private async Task SendCoreAsync(EmailMessage message,CancellationToken cancellationToken)
     {
         var email = new MimeMessage();
 

@@ -18,10 +18,26 @@ public sealed class PublicOffersController(
     ISender sender)
     : ControllerBase
 {
+    private static readonly System.Diagnostics.ActivitySource Telemetry = new("NexusHR.Business");
     [HttpPost("respond")]
     public async Task<IActionResult> Respond(
         RespondToOfferRequest request,
         CancellationToken cancellationToken)
+    {
+        // The capability-bearing HTTP operation remains excluded from tracing. Begin a
+        // clean business root with no incoming baggage, token, identity or request URL.
+        var previous = System.Diagnostics.Activity.Current;
+        System.Diagnostics.Activity.Current = null;
+        try {
+            using var activity = Telemetry.StartActivity("Offer decision");
+            activity?.SetTag("nexushr.operation", "offer-decision");
+            if (activity is not null && ControllerContext.HttpContext is { } http) http.Response.Headers["X-Correlation-ID"] = activity.TraceId.ToString();
+            var result = await RespondCore(request, cancellationToken);
+            if(result is Microsoft.AspNetCore.Mvc.Infrastructure.IStatusCodeActionResult {StatusCode: >=400}) activity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error);
+            return result;
+        } finally { System.Diagnostics.Activity.Current = previous; }
+    }
+    private async Task<IActionResult> RespondCore(RespondToOfferRequest request, CancellationToken cancellationToken)
     {
         if (!TryParseDecision(
                 request.Decision,
