@@ -21,7 +21,7 @@ jobs:
       matrix:
         service: [Candidate, Hiring, Onboarding, Notification, Gateway, Web]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Require successful CI for this exact main commit
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
