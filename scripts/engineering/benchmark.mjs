@@ -129,6 +129,8 @@ export async function benchmark(run, report, publish, infrastructure) {
         body: JSON.stringify({ documentId: history.documentId }),
       });
       pending = { base, id: analysis.id };
+      report.checks.modelJobCreated = true;
+      await publish();
       let peakCpu = null,
         peakMemory = null,
         cancelled = false;

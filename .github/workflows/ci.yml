@@ -72,7 +72,7 @@ jobs:
           done
       - run: npm ci
         working-directory: NexusHR.Web
-      - run: npm run lint && npm run build && npm audit --audit-level=high
+      - run: npm run lint && npm run build && npm audit --audit-level=moderate
         working-directory: NexusHR.Web
       - name: NuGet vulnerability gate
         shell: pwsh

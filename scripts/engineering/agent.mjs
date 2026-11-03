@@ -620,9 +620,19 @@ try {
     if (process.argv.includes("--once")) break;
     await sleep(2000);
   }
-} catch {
+} catch (error) {
+  const code = [
+    "DockerOperationFailed",
+    "InvalidLab",
+    "InvalidInventory",
+    "AgentApiUnavailable",
+    "LeaseLost",
+    "RecoveryFailed",
+  ].includes(error.message)
+    ? error.message
+    : "OperationError";
   console.error(
-    "Engineering agent stopped safely. Check lab readiness and local configuration; sensitive details withheld.",
+    `Engineering agent stopped safely (${code}). Sensitive details withheld.`,
   );
   process.exitCode = 1;
 }

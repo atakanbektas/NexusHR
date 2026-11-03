@@ -229,6 +229,8 @@ test("cached local models are benchmarked on the fixed synthetic PDF without cha
   const result = await terminal(request, id, headers, 850);
   expect(result.report.checks.cleanupVerified).toBe(true);
   expect(result.report.benchmarks).toHaveLength(2);
+  expect(result.report.checks.modelJobsSettled).toBe(true);
+  expect(result.report.checks.modelRestored).toBe(true);
   const baseline = result.report.benchmarks!.find(
     (x) => x.model === "qwen3:4b",
   )!;
@@ -247,6 +249,42 @@ test("cached local models are benchmarked on the fixed synthetic PDF without cha
       path: resolve("../docs/screenshots/engineering-ai.png"),
       fullPage: true,
     });
+});
+
+test("model cancellation waits for durable settlement and restores the isolated lab", async ({
+  page,
+  request,
+}) => {
+  test.skip(
+    process.env.RUN_ENGINEERING_BENCHMARK !== "1",
+    "Explicit local model execution approval required.",
+  );
+  test.setTimeout(240000);
+  const headers = await login(page, "operator");
+  const id = await create(request, headers, {
+    ...experiment,
+    kind: "ai-benchmark",
+    target: "candidates",
+    vus: 1,
+    models: ["qwen3:4b"],
+  });
+  await expect
+    .poll(
+      async () => {
+        const r = await request.get(`${api}/runs/${id}`, { headers });
+        return (await r.json()).report?.checks?.modelJobCreated;
+      },
+      { timeout: 120000, intervals: [1000] },
+    )
+    .toBe(true);
+  expect(
+    (await request.post(`${api}/runs/${id}/cancel`, { headers })).status(),
+  ).toBe(202);
+  const result = await terminal(request, id, headers, 100);
+  expect(result.status).toBe("Cancelled");
+  expect(result.report.checks.modelJobsSettled).toBe(true);
+  expect(result.report.checks.modelRestored).toBe(true);
+  expect(result.report.checks.cleanupVerified).toBe(true);
 });
 
 test("operator starts real bounded k6 from the UI, exports measured results and cancels a run", async ({
