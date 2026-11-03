@@ -160,6 +160,12 @@ test("technical reader sees real sources without receiving HR/CV or execution pe
       path: resolve("../docs/screenshots/engineering-overview.png"),
       fullPage: true,
     });
+    await page.getByRole("navigation", { name: "Engineering navigation" })
+      .getByRole("link", { name: "AI Observability", exact: true }).click();
+    await expect(page.getByText("bilingual-v1").first()).toBeVisible();
+    await page.mouse.move(1200, 20);
+    await page.waitForTimeout(250);
+    await page.screenshot({ path: resolve("../docs/screenshots/engineering-ai.png"), fullPage: true });
   }
 });
 

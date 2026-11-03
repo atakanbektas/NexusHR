@@ -16,6 +16,7 @@ Built to demonstrate senior backend engineering: resource authorization, optimis
 | CV analysis | Optional asynchronous analysis, source evidence, history, cancellation, retries, budget/quota controls and separate human review |
 | Document processing | Immutable CV versions, PdfPig text extraction, optional local OCR and fail-closed ClamAV scanning |
 | Reliability | EF transactional Outbox/Inbox, business-key deduplication, bounded retries, error queues and tested component recovery |
+| Engineering | Opt-in technical control center: live telemetry, metadata diagnostics, durable experiment history, isolated k6 load/capacity/fault tests and synthetic local-model benchmarks |
 
 **Optional AI CV Analysis:** Candidate-owned asynchronous analysis with evidence, HR review, durable jobs and atomic budget limits. Disabled by default; no paid API calls in CI. See [configuration and recovery](docs/ai-cv-analysis.md) and [ADR 004](docs/adr/004-async-cv-analysis.md).
 
@@ -30,6 +31,16 @@ Built to demonstrate senior backend engineering: resource authorization, optimis
 [View the actual scanned PDF → Tesseract → qwen3:4b browser result](docs/screenshots/ocr-ollama.png) (synthetic input; zero external API cost).
 
 ![Actual local OCR and Ollama analysis of a synthetic CV](docs/screenshots/ocr-ollama.png)
+
+## Engineering Control Center
+
+The optional [Engineering Control Center](docs/engineering-control-center.md) is available at `/engineering` after explicit development provisioning. Ten sections cover overview, infrastructure, databases, messaging, traces, redacted logs, CI, AI, load/capacity and isolated fault experiments. Missing telemetry is shown as unavailable. Dedicated technical roles do not grant candidate or CV access.
+
+![Engineering overview with actual local telemetry](docs/screenshots/engineering-overview.png)
+
+![Measured synthetic lab load experiment](docs/screenshots/engineering-load.png)
+
+Experiments require an explicitly started local agent, operator approval and a separate disposable lab. The Gateway has no Docker socket. Normal CI never runs load tests or paid model calls. This is a trusted local engineering environment; production deployment and unrestricted execution are outside its scope.
 
 ## Business workflow
 
